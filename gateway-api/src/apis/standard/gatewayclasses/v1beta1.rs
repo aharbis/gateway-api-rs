@@ -19,7 +19,7 @@ mod prelude {
 }
 
 use self::prelude::*;
-use crate::apis::standard::common::{ParametersReference, SupportedFeature};
+use crate::apis::standard::common::ParametersReference;
 
 /// Spec defines the desired state of GatewayClass.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -72,24 +72,7 @@ pub struct GatewayClassSpec {
 #[deprecated(note = "use `gateway_api::common::ParametersReference`")]
 pub type GatewayClassParametersRef = crate::apis::standard::common::ParametersReference;
 
-/// Status defines the current state of GatewayClass.
-///
-/// Implementations MUST populate status on all GatewayClass resources which
-/// specify their controller name.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayClassStatus {
-    /// Conditions is the current status from the controller for
-    /// this GatewayClass.
-    ///
-    /// Controllers should prefer to publish conditions using values
-    /// of GatewayClassConditionType for the type of each Condition.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub conditions: Option<Vec<Condition>>,
-    /// SupportedFeatures is the set of features the GatewayClass support.
-    /// It MUST be sorted in ascending alphabetical order by the Name key.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedFeatures")]
-    pub supported_features: Option<Vec<SupportedFeature>>,
-}
+pub use super::v1::GatewayClassStatus;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::common::SupportedFeature`")]

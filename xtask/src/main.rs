@@ -296,14 +296,24 @@ fn generate(version: &str) -> Result<()> {
     }
 
     let table = Table::load()?;
-    let mut matched_names = BTreeSet::new();
+    let mut matched = consolidate::Matched::default();
     let mut matched_distinct = BTreeSet::new();
     for channel in &mut channels {
-        consolidate_channel(channel, &table, &mut matched_names, &mut matched_distinct)?;
+        consolidate_channel(channel, &table, &mut matched, &mut matched_distinct)?;
     }
     for entry in &table.shared_types {
-        if let Some(name) = entry.kopium.iter().find(|name| !matched_names.contains(name.as_str())) {
+        if let Some(name) = entry.kopium.iter().find(|name| !matched.kopium.contains(name.as_str())) {
             bail!("shared type {go}: {name} matches no generated type", go = entry.go);
+        }
+    }
+    for (index, entry) in table.per_version.iter().enumerate() {
+        if let Some(name) = entry
+            .types
+            .iter()
+            .find(|name| !matched.per_version.contains(&(index, name.as_str())))
+        {
+            let (resource, version) = (&entry.resource, &entry.version);
+            bail!("per_version {resource} {version}: {name} matches no generated type");
         }
     }
     for (index, group) in table.distinct.iter().enumerate() {
@@ -380,7 +390,7 @@ fn generate_channel(version: &str, channel: &'static Channel) -> Result<Generate
 fn consolidate_channel<'t>(
     generated: &mut GeneratedChannel,
     table: &'t Table,
-    matched_names: &mut BTreeSet<&'t str>,
+    matched: &mut consolidate::Matched<'t>,
     matched_distinct: &mut BTreeSet<usize>,
 ) -> Result<()> {
     let channel = generated.channel;
@@ -408,7 +418,7 @@ fn consolidate_channel<'t>(
         }
     }
 
-    let consolidated = consolidate::consolidate(channel_name, &table.shared_types, &mut modules, matched_names)
+    let consolidated = consolidate::consolidate(channel_name, table, &mut modules, matched)
         .with_context(|| format!("{channel_name}: consolidating shared types"))?;
     let named = consolidated.names;
     let mut common = gen_common_prelude();

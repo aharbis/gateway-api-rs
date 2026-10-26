@@ -22,6 +22,8 @@ pub struct Table {
     pub shared_types: Vec<SharedType>,
     /// Groups of types that share a shape but are distinct upstream.
     pub distinct: Vec<Vec<String>>,
+    /// The types non-root API versions declare themselves.
+    pub per_version: Vec<PerVersion>,
 }
 
 impl Table {
@@ -38,6 +40,17 @@ impl Table {
         }
         Ok(table)
     }
+}
+
+/// The types one non-root API version of a resource declares itself in Go,
+/// rather than as aliases of the root version's: a defined type
+/// (`type X v1.X`) or a struct of its own. Named by their kopium names.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerVersion {
+    pub resource: String,
+    pub version: String,
+    pub types: Vec<String>,
 }
 
 /// Where a shared type's one definition is generated: `common`, or a
@@ -62,7 +75,7 @@ impl From<String> for Placement {
 }
 
 /// An upstream Go type that kopium generates at more than one path.
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SharedType {
     /// The Go type's name.
@@ -99,7 +112,8 @@ mod tests {
         let yaml = "shared_types:\n  \
                       - {go: Fraction, placement: common, kopium: [A]}\n  \
                       - {go: Fraction, placement: common, kopium: [B]}\n\
-                    distinct: []\n";
+                    distinct: []\n\
+                    per_version: []\n";
         let error = Table::parse(yaml).err().expect("parsing should fail");
         assert_eq!(error.to_string(), "shared type Fraction is listed twice");
     }

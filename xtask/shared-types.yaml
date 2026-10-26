@@ -342,3 +342,26 @@ distinct:
   # TODO(phase 5): removed by `k8s-openapi`'s `LabelSelector`.
   - [RouteNamespacesSelectorMatchExpressions,
      GatewayAllowedListenersNamespacesSelectorMatchExpressions]
+
+# The types a non-root API version declares itself in Go: a defined type
+# (`type X v1.X`), which needs an explicit conversion, or a struct of its own.
+# Every other type a non-root version shares with its resource's root version
+# is a Go alias (`type X = v1.X`), and is re-exported from the root version.
+# The spec is always per version, as kube needs, but is listed where Go
+# declares it too. Types are named by their kopium names; generation fails on
+# one that matches nothing.
+per_version:
+  - resource: tlsroutes
+    version: v1alpha2
+    types:
+      # Its own struct: `hostnames` is optional.
+      - TlsRouteSpec
+      # type TLSRouteRule v1.TLSRouteRule
+      - TlsRouteRules
+      # type TLSRouteStatus v1.TLSRouteStatus
+      - TlsRouteStatus
+  - resource: tlsroutes
+    version: v1alpha3
+    types:
+      # type TLSRouteSpec v1.TLSRouteSpec; its rules are still v1.TLSRouteRule.
+      - TlsRouteSpec

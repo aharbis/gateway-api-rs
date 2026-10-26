@@ -19,7 +19,7 @@ mod prelude {
 }
 
 use self::prelude::*;
-use crate::apis::standard::common::{BackendRef, ParentReference, RouteParentStatus};
+use crate::apis::standard::common::ParentReference;
 
 /// Spec defines the desired state of TLSRoute.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -103,55 +103,11 @@ pub struct TlsRouteSpec {
 #[deprecated(note = "use `gateway_api::common::ParentReference`")]
 pub type TlsRouteParentRefs = crate::apis::standard::common::ParentReference;
 
-/// TLSRouteRule is the configuration for a given rule.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct TlsRouteRules {
-    /// BackendRefs defines the backend(s) where matching requests should be
-    /// sent. If unspecified or invalid (refers to a nonexistent resource or
-    /// a Service with no endpoints), the rule performs no forwarding; if no
-    /// filters are specified that would result in a response being sent, the
-    /// underlying implementation must actively reject request attempts to this
-    /// backend, by rejecting the connection. Request rejections must respect
-    /// weight; if an invalid backend is requested to have 80% of requests, then
-    /// 80% of requests must be rejected instead.
-    ///
-    /// Support: Core for Kubernetes Service
-    ///
-    /// Support: Extended for Kubernetes ServiceImport
-    ///
-    /// Support: Implementation-specific for any other resource
-    ///
-    /// Support for weight: Extended
-    #[serde(rename = "backendRefs")]
-    pub backend_refs: Vec<BackendRef>,
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-}
+pub use super::v1::{TlsRouteRules, TlsRouteStatus};
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::common::BackendRef`")]
 pub type TlsRouteRulesBackendRefs = crate::apis::standard::common::BackendRef;
-
-/// Status defines the current state of TLSRoute.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct TlsRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
-    /// associated with the route, and the status of the route with respect to
-    /// each parent. When this route attaches to a parent, the controller that
-    /// manages the parent must add an entry to this list when the controller
-    /// first sees the route and should update the entry as appropriate when the
-    /// route or gateway is modified.
-    ///
-    /// Note that parent references that cannot be resolved by an implementation
-    /// of this API will not be added to this list. Implementations of this API
-    /// can only populate Route status for the Gateways/parent resources they are
-    /// responsible for.
-    ///
-    /// A maximum of 32 Gateways will be represented in this list. An empty list
-    /// means the route has not been attached to any Gateway.
-    pub parents: Vec<RouteParentStatus>,
-}
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::common::RouteParentStatus`")]

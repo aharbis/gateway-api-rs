@@ -21,9 +21,7 @@ mod prelude {
 }
 
 use self::prelude::*;
-use crate::apis::experimental::common::{
-    LocalObjectReference, LocalPolicyTargetReferenceWithSectionName, PolicyStatus,
-};
+use crate::apis::experimental::common::{LocalPolicyTargetReferenceWithSectionName, PolicyStatus};
 
 /// Spec defines the desired state of BackendTLSPolicy.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -118,138 +116,14 @@ pub struct BackendTlsPolicySpec {
 #[deprecated(note = "use `gateway_api::experimental::common::LocalPolicyTargetReferenceWithSectionName`")]
 pub type BackendTlsPolicyTargetRefs = crate::apis::experimental::common::LocalPolicyTargetReferenceWithSectionName;
 
-/// Validation contains backend TLS validation configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct BackendTlsPolicyValidation {
-    /// CACertificateRefs contains one or more references to Kubernetes objects that
-    /// contain a PEM-encoded TLS CA certificate bundle, which is used to
-    /// validate a TLS handshake between the Gateway and backend Pod.
-    ///
-    /// If CACertificateRefs is empty or unspecified, then WellKnownCACertificates must be
-    /// specified. Only one of CACertificateRefs or WellKnownCACertificates may be specified,
-    /// not both. If CACertificateRefs is empty or unspecified, the configuration for
-    /// WellKnownCACertificates MUST be honored instead if supported by the implementation.
-    ///
-    /// A CACertificateRef is invalid if:
-    ///
-    /// * It refers to a resource that cannot be resolved (e.g., the referenced resource
-    ///   does not exist) or is misconfigured (e.g., a ConfigMap does not contain a key
-    ///   named `ca.crt`). In this case, the Reason must be set to `InvalidCACertificateRef`
-    ///   and the Message of the Condition must indicate which reference is invalid and why.
-    ///
-    /// * It refers to an unknown or unsupported kind of resource. In this case, the Reason
-    ///   must be set to `InvalidKind` and the Message of the Condition must explain which
-    ///   kind of resource is unknown or unsupported.
-    ///
-    /// * It refers to a resource in another namespace. This may change in future
-    ///   spec updates.
-    ///
-    /// Implementations MAY choose to perform further validation of the certificate
-    /// content (e.g., checking expiry or enforcing specific formats). In such cases,
-    /// an implementation-specific Reason and Message must be set for the invalid reference.
-    ///
-    /// In all cases, the implementation MUST ensure the `ResolvedRefs` Condition on
-    /// the BackendTLSPolicy is set to `status: False`, with a Reason and Message
-    /// that indicate the cause of the error. Connections using an invalid
-    /// CACertificateRef MUST fail, and the client MUST receive an HTTP 5xx error
-    /// response. If ALL CACertificateRefs are invalid, the implementation MUST also
-    /// ensure the `Accepted` Condition on the BackendTLSPolicy is set to
-    /// `status: False`, with a Reason `NoValidCACertificate`.
-    ///
-    /// A single CACertificateRef to a Kubernetes ConfigMap kind has "Core" support.
-    /// Implementations MAY choose to support attaching multiple certificates to
-    /// a backend, but this behavior is implementation-specific.
-    ///
-    /// Support: Core - An optional single reference to a Kubernetes ConfigMap,
-    /// with the CA certificate in a key named `ca.crt`.
-    ///
-    /// Support: Implementation-specific - More than one reference, other kinds
-    /// of resources, or a single reference that includes multiple certificates.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "caCertificateRefs")]
-    pub ca_certificate_refs: Option<Vec<LocalObjectReference>>,
-    /// Hostname is used for two purposes in the connection between Gateways and
-    /// backends:
-    ///
-    /// 1. Hostname MUST be used as the SNI to connect to the backend (RFC 6066).
-    /// 2. Hostname MUST be used for authentication and MUST match the certificate
-    ///    served by the matching backend, unless SubjectAltNames is specified.
-    /// 3. If SubjectAltNames are specified, Hostname can be used for certificate selection
-    ///    but MUST NOT be used for authentication. If you want to use the value
-    ///    of the Hostname field for authentication, you MUST add it to the SubjectAltNames list.
-    ///
-    /// Support: Core
-    pub hostname: String,
-    /// SubjectAltNames contains one or more Subject Alternative Names.
-    /// When specified the certificate served from the backend MUST
-    /// have at least one Subject Alternate Name matching one of the specified SubjectAltNames.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "subjectAltNames")]
-    pub subject_alt_names: Option<Vec<BackendTlsPolicyValidationSubjectAltNames>>,
-    /// WellKnownCACertificates specifies whether a well-known set of CA certificates
-    /// may be used in the TLS handshake between the gateway and backend pod.
-    ///
-    /// If WellKnownCACertificates is unspecified or empty (""), then CACertificateRefs
-    /// must be specified with at least one entry for a valid configuration. Only one of
-    /// CACertificateRefs or WellKnownCACertificates may be specified, not both.
-    /// If an implementation does not support the WellKnownCACertificates field, or
-    /// the supplied value is not recognized, the implementation MUST ensure the
-    /// `Accepted` Condition on the BackendTLSPolicy is set to `status: False`, with
-    /// a Reason `Invalid`.
-    ///
-    /// Valid values include:
-    /// * "System" - indicates that well-known system CA certificates should be used.
-    ///
-    /// Implementations MAY define their own sets of CA certificates. Such definitions
-    /// MUST use an implementation-specific, prefixed name, such as
-    /// `mycompany.com/my-custom-ca-certificates`.
-    ///
-    /// Support: Implementation-specific
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "wellKnownCACertificates")]
-    pub well_known_ca_certificates: Option<String>,
-}
+pub use super::v1::{
+    BackendTlsPolicyValidation, BackendTlsPolicyValidationSubjectAltNames,
+    BackendTlsPolicyValidationSubjectAltNamesType,
+};
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::LocalObjectReference`")]
 pub type BackendTlsPolicyValidationCaCertificateRefs = crate::apis::experimental::common::LocalObjectReference;
-
-/// SubjectAltName represents Subject Alternative Name.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct BackendTlsPolicyValidationSubjectAltNames {
-    /// Hostname contains Subject Alternative Name specified in DNS name format.
-    /// Required when Type is set to Hostname, ignored otherwise.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hostname: Option<String>,
-    /// Type determines the format of the Subject Alternative Name. Always required.
-    ///
-    /// Support: Core
-    #[serde(rename = "type")]
-    pub r#type: BackendTlsPolicyValidationSubjectAltNamesType,
-    /// URI contains Subject Alternative Name specified in a full URI format.
-    /// It MUST include both a scheme (e.g., "http" or "ftp") and a scheme-specific-part.
-    /// Common values include SPIFFE IDs like "spiffe://mycluster.example.com/ns/myns/sa/svc1sa".
-    /// Required when Type is set to URI, ignored otherwise.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub uri: Option<String>,
-}
-
-/// SubjectAltName represents Subject Alternative Name.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum BackendTlsPolicyValidationSubjectAltNamesType {
-    Hostname,
-    #[serde(rename = "URI")]
-    Uri,
-}
-
-impl Default for BackendTlsPolicyValidationSubjectAltNamesType {
-    fn default() -> Self {
-        BackendTlsPolicyValidationSubjectAltNamesType::Hostname
-    }
-}
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::PolicyStatus`")]

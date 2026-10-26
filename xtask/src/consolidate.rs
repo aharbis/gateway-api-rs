@@ -14,7 +14,7 @@ use syn::{
     visit_mut::{self, VisitMut},
 };
 
-use crate::shared_types::{Placement, SharedType};
+use crate::shared_types::{PerVersion, Placement, SharedType, Table};
 
 /// One generated module that takes part in consolidation.
 pub struct Module<'a> {
@@ -36,6 +36,16 @@ impl Module<'_> {
     fn placement(&self) -> Option<Placement> {
         self.root.then(|| Placement::Resource(self.resource.clone()))
     }
+}
+
+/// The table entries consolidation matched, across channels, for failing on
+/// stale ones.
+#[derive(Default)]
+pub struct Matched<'t> {
+    /// Kopium names in `shared_types`.
+    pub kopium: BTreeSet<&'t str>,
+    /// Types in `per_version`, by entry index.
+    pub per_version: BTreeSet<(usize, &'t str)>,
 }
 
 /// What consolidating a channel produced, besides the changes to its modules.
@@ -104,15 +114,17 @@ impl Paths<'_> {
 
 /// Consolidates `modules`, the modules of one channel, by `table`. Ordered
 /// root versions first, they decide which instance documents a shared type.
-/// Adds every kopium name `table` matched to `matched`.
+/// Adds the entries `table` matched to `matched`.
 pub fn consolidate<'t>(
     channel: &str,
-    table: &'t [SharedType],
+    table: &'t Table,
     modules: &mut [Module<'_>],
-    matched: &mut BTreeSet<&'t str>,
+    matched: &mut Matched<'t>,
 ) -> Result<Consolidated> {
+    let per_version = &table.per_version;
+    let table = &table.shared_types;
     let items: Vec<_> = modules.iter().map(|module| item_indices(&module.file.items)).collect();
-    let renames = plan_renames(table, modules, &items, matched)?;
+    let renames = plan_renames(table, modules, &items, &mut matched.kopium)?;
     let paths = Paths {
         channel,
         roots: modules
@@ -162,6 +174,7 @@ pub fn consolidate<'t>(
         }
     }
 
+    reexport_root_types(modules, &items, &renames, per_version, &mut matched.per_version)?;
     replace_sites(modules, &renames, defs, &paths)?;
     rewrite_module(&mut common, Some(&Placement::Common), &renames, &paths)?;
     Ok(Consolidated {
@@ -669,6 +682,95 @@ fn add_upstream_doc(item: &mut syn::Item, go: &str) {
     attrs.splice(at..at, doc);
 }
 
+/// Re-exports, in each non-root version, the types that are Go aliases of
+/// the root version's: each type the root version also has, apart from the
+/// spec, which kube needs per version, those consolidation replaces, and those
+/// `per_version` lists. Fails if one's shape differs from the root version's.
+fn reexport_root_types<'t>(
+    modules: &mut [Module<'_>],
+    items: &[BTreeMap<String, usize>],
+    renames: &BTreeMap<String, Rename<'_>>,
+    per_version: &'t [PerVersion],
+    matched: &mut BTreeSet<(usize, &'t str)>,
+) -> Result<()> {
+    let named = |name: &str| renames.get(name).map(|rename| rename.name.clone());
+    let roots: BTreeMap<&str, usize> = modules
+        .iter()
+        .enumerate()
+        .filter(|(_, module)| module.root)
+        .map(|(index, module)| (module.resource.as_str(), index))
+        .collect();
+
+    let mut reexports = Vec::new();
+    {
+        let mut shapers: Vec<_> = modules
+            .iter()
+            .zip(items)
+            .map(|(module, items)| Shaper::new(&module.file.items, items, &named))
+            .collect();
+        for (index, module) in modules.iter().enumerate().filter(|(_, module)| !module.root) {
+            let root = roots[module.resource.as_str()];
+            let own: Vec<(usize, &str)> = per_version
+                .iter()
+                .enumerate()
+                .filter(|(_, entry)| entry.resource == module.resource && entry.version == module.version)
+                .flat_map(|(entry, types)| types.types.iter().map(move |name| (entry, name.as_str())))
+                .collect();
+            for (name, &item) in &items[index] {
+                if let Some(&(entry, name)) = own.iter().find(|(_, own)| own == name) {
+                    matched.insert((entry, name));
+                    continue;
+                }
+                if renames.contains_key(name) || is_spec(&module.file.items[item]) || !items[root].contains_key(name) {
+                    continue;
+                }
+                if shapers[index].shape_of(name) != shapers[root].shape_of(name) {
+                    let root_module = &modules[root];
+                    bail!(
+                        "{module}: {name} differs from {root}'s, so it isn't a Go alias of it. If upstream declares \
+                         it in {version}, add it to per_version in xtask/shared-types.yaml.\n{diff}",
+                        module = module.name(),
+                        root = root_module.version,
+                        version = module.version,
+                        diff = diff_items(&root_module.file.items[items[root][name]], &module.file.items[item]),
+                    );
+                }
+                reexports.push((index, item, name.clone(), modules[root].version.clone()));
+            }
+        }
+    }
+
+    // One re-export per module, where the first of its types was
+    let mut by_module: BTreeMap<usize, (String, Vec<(usize, String)>)> = BTreeMap::new();
+    for (module, item, name, root) in reexports {
+        by_module
+            .entry(module)
+            .or_insert_with(|| (root, Vec::new()))
+            .1
+            .push((item, name));
+    }
+    for (module, (root, mut types)) in by_module {
+        types.sort();
+        let items = &mut modules[module].file.items;
+        let list = types
+            .iter()
+            .map(|(_, name)| name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let reexport = syn::parse_str(&format!("pub use super::{root}::{{{list}}};")).expect("a re-export parses");
+        for &(item, _) in types.iter().skip(1).rev() {
+            items.remove(item);
+        }
+        items[types[0].0] = reexport;
+    }
+    Ok(())
+}
+
+/// Whether `item` is a resource's spec, which kube derives the resource from.
+fn is_spec(item: &syn::Item) -> bool {
+    matches!(item, syn::Item::Struct(item) if item.attrs.iter().any(|attr| attr.path().is_ident("kube")))
+}
+
 /// Replaces each renamed type with a deprecated alias to its new name, puts
 /// the types placed in each resource in its root version module, where the
 /// first of them was, and points every module at the new names.
@@ -950,10 +1052,19 @@ mod tests {
         }
     }
 
-    fn run_with(table: &[SharedType], mut modules: Vec<Module<'_>>) -> Result<(Consolidated, BTreeSet<String>)> {
-        let mut matched = BTreeSet::new();
+    fn run_with(shared_types: &[SharedType], modules: Vec<Module<'_>>) -> Result<(Consolidated, BTreeSet<String>)> {
+        let table = Table {
+            shared_types: shared_types.to_vec(),
+            distinct: Vec::new(),
+            per_version: Vec::new(),
+        };
+        run_table(&table, modules)
+    }
+
+    fn run_table(table: &Table, mut modules: Vec<Module<'_>>) -> Result<(Consolidated, BTreeSet<String>)> {
+        let mut matched = Matched::default();
         let consolidated = consolidate("standard", table, &mut modules, &mut matched)?;
-        Ok((consolidated, matched.into_iter().map(String::from).collect()))
+        Ok((consolidated, matched.kopium.into_iter().map(String::from).collect()))
     }
 
     fn item<'a>(items: &'a [syn::Item], name: &str) -> &'a syn::Item {
@@ -1138,6 +1249,12 @@ mod tests {
             &["ARulesFilters", "ARulesBackendRefsFilters"],
         )];
         let (mut v1, mut v1beta1) = (module_with_filters(), module_with_filters());
+        // A type only this version has
+        v1beta1.items.push(syn::parse_quote! {
+            pub struct ARulesExtra {
+                pub filter: ARulesFilters,
+            }
+        });
         let modules = vec![
             module("a", "v1", true, &mut v1),
             module("a", "v1beta1", false, &mut v1beta1),
@@ -1176,7 +1293,8 @@ mod tests {
         assert!(tokens(item(&v1.items, "Filter")).contains("pub kind : FilterKind"));
         assert!(!v1.items.iter().any(|item| tokens(item).starts_with("use crate")));
 
-        // Other versions import them from the root version
+        // Other versions import them from the root version, and re-export
+        // the types they share with it
         let alias = tokens(item(&v1beta1.items, "ARulesFilters"));
         assert!(
             alias.contains("= crate :: apis :: standard :: a :: v1 :: Filter"),
@@ -1187,7 +1305,92 @@ mod tests {
             tokens(&v1beta1.items[1]),
             "use crate :: apis :: standard :: a :: v1 :: { Filter } ;"
         );
-        assert!(tokens(item(&v1beta1.items, "ARules")).contains("Vec < Filter >"));
+        assert!(tokens(item(&v1beta1.items, "ARulesExtra")).contains("pub filter : Filter"));
+        assert!(
+            v1beta1
+                .items
+                .iter()
+                .any(|item| tokens(item) == "pub use super :: v1 :: { ARules , ARulesBackendRefs } ;")
+        );
+    }
+
+    /// A resource `a` with a root version `v1` and a `v1beta1` whose `ARules`
+    /// has an extra field when `differ` is set.
+    fn run_versions(differ: bool, per_version: &[&str]) -> Result<(syn::File, BTreeSet<(usize, String)>)> {
+        let mut v1: syn::File = syn::parse_quote! {
+            use self::prelude::*;
+            /// Spec.
+            #[kube(group = "example.com")]
+            pub struct ASpec {
+                pub rules: Vec<ARules>,
+            }
+            pub struct ARules {
+                pub name: String,
+            }
+        };
+        let mut v1beta1 = v1.clone();
+        if differ {
+            v1beta1.items[2] = syn::parse_quote! {
+                pub struct ARules {
+                    pub name: String,
+                    pub port: i32,
+                }
+            };
+        }
+        let table = Table {
+            shared_types: Vec::new(),
+            distinct: Vec::new(),
+            per_version: vec![PerVersion {
+                resource: "a".into(),
+                version: "v1beta1".into(),
+                types: per_version.iter().map(ToString::to_string).collect(),
+            }],
+        };
+        let mut modules = vec![
+            module("a", "v1", true, &mut v1),
+            module("a", "v1beta1", false, &mut v1beta1),
+        ];
+        let mut matched = Matched::default();
+        consolidate("standard", &table, &mut modules, &mut matched)?;
+        let matched = matched
+            .per_version
+            .into_iter()
+            .map(|(entry, name)| (entry, name.to_string()))
+            .collect();
+        Ok((v1beta1, matched))
+    }
+
+    #[test]
+    fn reexports_root_types_but_not_the_spec() {
+        let (v1beta1, matched) = run_versions(false, &[]).unwrap();
+        let items: Vec<String> = v1beta1.items.iter().skip(1).map(tokens).collect();
+        assert!(
+            items[0].ends_with("pub struct ASpec { pub rules : Vec < ARules > , }"),
+            "{}",
+            items[0]
+        );
+        assert_eq!(items[1], "pub use super :: v1 :: { ARules } ;");
+        assert!(matched.is_empty());
+    }
+
+    #[test]
+    fn keeps_per_version_types() {
+        let (v1beta1, matched) = run_versions(true, &["ARules"]).unwrap();
+        assert!(tokens(&v1beta1.items[2]).contains("pub port : i32"));
+        assert_eq!(matched, BTreeSet::from([(0, "ARules".into())]));
+    }
+
+    #[test]
+    fn fails_when_a_shared_type_differs_from_the_root_version() {
+        let error = run_versions(true, &[])
+            .err()
+            .expect("consolidation should fail")
+            .to_string();
+        assert!(
+            error.starts_with("a v1beta1: ARules differs from v1's, so it isn't a Go alias of it."),
+            "{error}"
+        );
+        assert!(error.contains("+     pub port: i32,"), "{error}");
     }
 
     #[test]
