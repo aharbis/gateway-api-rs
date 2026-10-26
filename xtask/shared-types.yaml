@@ -2,13 +2,15 @@
 # xtask embeds this file. See `docs/specs/shared-types.md`.
 
 # Upstream Go types that kopium generates at more than one path, in the order
-# they're generated into `common`.
+# they're generated in where each is placed.
 #
 # go: the Go type's name, which names the Rust type. Each may appear once.
 # rust: the Rust name, where kopium's casing of the Go name reads badly.
 #   Optional.
 # placement: where the one definition goes: `common`, the channel's `common`
-#   module, or a resource name, that resource's root version module.
+#   module; `k8s`, k8s-openapi's, which defines Kubernetes types kopium
+#   doesn't recognise; or a resource name, that resource's root version
+#   module.
 # kopium: every kopium name the type replaces, in any channel or API version.
 #   Generation fails on a name that matches nothing.
 shared_types:
@@ -313,6 +315,22 @@ shared_types:
       - GatewayTlsFrontendDefaultValidationMode
       - GatewayTlsFrontendPerPortTlsValidationMode
 
+  # Kubernetes types kopium doesn't recognise, replaced by k8s-openapi's.
+  - go: metav1.LabelSelector
+    rust: LabelSelector
+    placement: k8s
+    kopium:
+      - GatewayListenersAllowedRoutesNamespacesSelector
+      - ListenerSetListenersAllowedRoutesNamespacesSelector
+      - GatewayAllowedListenersNamespacesSelector
+  - go: metav1.LabelSelectorRequirement
+    rust: LabelSelectorRequirement
+    placement: k8s
+    kopium:
+      - GatewayListenersAllowedRoutesNamespacesSelectorMatchExpressions
+      - ListenerSetListenersAllowedRoutesNamespacesSelectorMatchExpressions
+      - GatewayAllowedListenersNamespacesSelectorMatchExpressions
+
 # Groups of types that share a shape but are distinct upstream. In each
 # channel, every group of shape-identical types, restricted to the names the
 # channel generates, must equal one of these; generation fails on a group that
@@ -339,9 +357,6 @@ distinct:
   - [TcpRouteSpec, UdpRouteSpec]
   - [GatewayClassSpec, XMeshSpec]
   - [GatewayClassStatus, XMeshStatus]
-  # TODO(phase 5): removed by `k8s-openapi`'s `LabelSelector`.
-  - [RouteNamespacesSelectorMatchExpressions,
-     GatewayAllowedListenersNamespacesSelectorMatchExpressions]
 
 # The types a non-root API version declares itself in Go: a defined type
 # (`type X v1.X`), which needs an explicit conversion, or a struct of its own.

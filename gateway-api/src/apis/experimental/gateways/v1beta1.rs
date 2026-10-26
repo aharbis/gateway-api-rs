@@ -260,11 +260,19 @@ pub struct GatewaySpec {
 
 pub use super::v1::{
     GatewayAddresses, GatewayAllowedListeners, GatewayAllowedListenersNamespaces,
-    GatewayAllowedListenersNamespacesFrom, GatewayAllowedListenersNamespacesSelector,
-    GatewayAllowedListenersNamespacesSelectorMatchExpressions, GatewayInfrastructure,
-    GatewayInfrastructureParametersRef, GatewayListeners, GatewayStatus, GatewayStatusAddresses,
-    GatewayStatusListeners, GatewayTls, GatewayTlsBackend, GatewayTlsFrontend, GatewayTlsFrontendPerPort,
+    GatewayAllowedListenersNamespacesFrom, GatewayInfrastructure, GatewayInfrastructureParametersRef, GatewayListeners,
+    GatewayStatus, GatewayStatusAddresses, GatewayStatusListeners, GatewayTls, GatewayTlsBackend, GatewayTlsFrontend,
+    GatewayTlsFrontendPerPort,
 };
+
+#[doc(hidden)]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector`")]
+pub type GatewayAllowedListenersNamespacesSelector = k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+
+#[doc(hidden)]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement`")]
+pub type GatewayAllowedListenersNamespacesSelectorMatchExpressions =
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::GatewayDefaultScope`")]
@@ -287,13 +295,14 @@ pub type GatewayListenersAllowedRoutesNamespaces = crate::apis::experimental::co
 pub type GatewayListenersAllowedRoutesNamespacesFrom = crate::apis::experimental::common::FromNamespaces;
 
 #[doc(hidden)]
-#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespacesSelector`")]
-pub type GatewayListenersAllowedRoutesNamespacesSelector = crate::apis::experimental::common::RouteNamespacesSelector;
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector`")]
+pub type GatewayListenersAllowedRoutesNamespacesSelector =
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
 #[doc(hidden)]
-#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespacesSelectorMatchExpressions`")]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement`")]
 pub type GatewayListenersAllowedRoutesNamespacesSelectorMatchExpressions =
-    crate::apis::experimental::common::RouteNamespacesSelectorMatchExpressions;
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::ListenerTlsConfig`")]

@@ -53,23 +53,26 @@ pub struct PerVersion {
     pub types: Vec<String>,
 }
 
-/// Where a shared type's one definition is generated: `common`, or a
-/// resource's name.
+/// Where a shared type's one definition is: `common`, `k8s`, or a resource's
+/// name.
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(from = "String")]
 pub enum Placement {
     /// The channel's `common` module.
     Common,
+    /// `k8s-openapi`, which defines the Kubernetes types kopium doesn't
+    /// recognise. Nothing is generated.
+    K8s,
     /// The resource's root version module, for a type only it uses.
     Resource(String),
 }
 
 impl From<String> for Placement {
     fn from(name: String) -> Self {
-        if name == "common" {
-            Self::Common
-        } else {
-            Self::Resource(name)
+        match name.as_str() {
+            "common" => Self::Common,
+            "k8s" => Self::K8s,
+            _ => Self::Resource(name),
         }
     }
 }

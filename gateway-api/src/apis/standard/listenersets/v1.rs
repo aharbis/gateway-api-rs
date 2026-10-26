@@ -162,13 +162,14 @@ pub type ListenerSetListenersAllowedRoutesNamespaces = crate::apis::standard::co
 pub type ListenerSetListenersAllowedRoutesNamespacesFrom = crate::apis::standard::common::FromNamespaces;
 
 #[doc(hidden)]
-#[deprecated(note = "use `gateway_api::common::RouteNamespacesSelector`")]
-pub type ListenerSetListenersAllowedRoutesNamespacesSelector = crate::apis::standard::common::RouteNamespacesSelector;
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector`")]
+pub type ListenerSetListenersAllowedRoutesNamespacesSelector =
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
 #[doc(hidden)]
-#[deprecated(note = "use `gateway_api::common::RouteNamespacesSelectorMatchExpressions`")]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement`")]
 pub type ListenerSetListenersAllowedRoutesNamespacesSelectorMatchExpressions =
-    crate::apis::standard::common::RouteNamespacesSelectorMatchExpressions;
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::common::ListenerTlsConfig`")]

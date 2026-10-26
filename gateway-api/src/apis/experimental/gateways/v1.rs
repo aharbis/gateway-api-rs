@@ -20,6 +20,8 @@ mod prelude {
     pub use serde::{Deserialize, Serialize};
 }
 
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+
 use self::prelude::*;
 use crate::apis::experimental::common::{
     AllowedRoutes, ListenerTlsConfig, ObjectReference, RouteGroupKind, SecretObjectReference,
@@ -307,7 +309,7 @@ pub struct GatewayAllowedListenersNamespaces {
     /// only ListenerSets in Namespaces matching this Selector will be selected by this
     /// Gateway. This field is ignored for other values of "From".
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub selector: Option<GatewayAllowedListenersNamespacesSelector>,
+    pub selector: Option<LabelSelector>,
 }
 
 /// Namespaces defines which namespaces ListenerSets can be attached to this Gateway.
@@ -320,37 +322,14 @@ pub enum GatewayAllowedListenersNamespacesFrom {
     None,
 }
 
-/// Selector must be specified when From is set to "Selector". In that case,
-/// only ListenerSets in Namespaces matching this Selector will be selected by this
-/// Gateway. This field is ignored for other values of "From".
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayAllowedListenersNamespacesSelector {
-    /// matchExpressions is a list of label selector requirements. The requirements are ANDed.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "matchExpressions")]
-    pub match_expressions: Option<Vec<GatewayAllowedListenersNamespacesSelectorMatchExpressions>>,
-    /// matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
-    /// map is equivalent to an element of matchExpressions, whose key field is "key", the
-    /// operator is "In", and the values array contains only "value". The requirements are ANDed.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "matchLabels")]
-    pub match_labels: Option<BTreeMap<String, String>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector`")]
+pub type GatewayAllowedListenersNamespacesSelector = k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
-/// A label selector requirement is a selector that contains values, a key, and an operator that
-/// relates the key and values.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayAllowedListenersNamespacesSelectorMatchExpressions {
-    /// key is the label key that the selector applies to.
-    pub key: String,
-    /// operator represents a key's relationship to a set of values.
-    /// Valid operators are In, NotIn, Exists and DoesNotExist.
-    pub operator: String,
-    /// values is an array of string values. If the operator is In or NotIn,
-    /// the values array must be non-empty. If the operator is Exists or DoesNotExist,
-    /// the values array must be empty. This array is replaced during a strategic
-    /// merge patch.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub values: Option<Vec<String>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement`")]
+pub type GatewayAllowedListenersNamespacesSelectorMatchExpressions =
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::GatewayDefaultScope`")]
@@ -555,13 +534,14 @@ pub type GatewayListenersAllowedRoutesNamespaces = crate::apis::experimental::co
 pub type GatewayListenersAllowedRoutesNamespacesFrom = crate::apis::experimental::common::FromNamespaces;
 
 #[doc(hidden)]
-#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespacesSelector`")]
-pub type GatewayListenersAllowedRoutesNamespacesSelector = crate::apis::experimental::common::RouteNamespacesSelector;
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector`")]
+pub type GatewayListenersAllowedRoutesNamespacesSelector =
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
 
 #[doc(hidden)]
-#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespacesSelectorMatchExpressions`")]
+#[deprecated(note = "use `k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement`")]
 pub type GatewayListenersAllowedRoutesNamespacesSelectorMatchExpressions =
-    crate::apis::experimental::common::RouteNamespacesSelectorMatchExpressions;
+    k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::ListenerTlsConfig`")]

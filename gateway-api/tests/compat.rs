@@ -46,3 +46,24 @@ fn resource_type() -> u8 {
         _ => 1,
     }
 }
+
+/// `k8s-openapi`'s `LabelSelector`, through aliases in a resource module. Every
+/// old field is written out: cargo-semver-checks can't see behind an alias to
+/// another crate's type, so this is what checks none went missing.
+fn k8s_type() {
+    use std::collections::BTreeMap;
+
+    use gateway_api::gateways::{
+        GatewayListenersAllowedRoutesNamespacesSelector,
+        GatewayListenersAllowedRoutesNamespacesSelectorMatchExpressions,
+    };
+
+    let _selector = GatewayListenersAllowedRoutesNamespacesSelector {
+        match_expressions: Some(vec![GatewayListenersAllowedRoutesNamespacesSelectorMatchExpressions {
+            key: "team".into(),
+            operator: "In".into(),
+            values: Some(vec!["a".into()]),
+        }]),
+        match_labels: Some(BTreeMap::from([("env".into(), "test".into())])),
+    };
+}
