@@ -1,0 +1,283 @@
+# Hand-kept facts from the upstream Go source, which the CRDs don't carry. The
+# xtask embeds this file. See `docs/specs/shared-types.md`.
+
+# Upstream Go types that kopium generates at more than one path, in the order
+# they're generated into `common`.
+#
+# go: the Go type's name, which names the Rust type. Each may appear once.
+# placement: where the one definition goes. `common` is the channel's `common`
+#   module.
+# kopium: every kopium name the type replaces, in any channel or API version.
+#   Generation fails on a name that matches nothing.
+shared_types:
+  - go: ParentReference
+    placement: common
+    kopium:
+      - HttpRouteParentRefs
+      - GrpcRouteParentRefs
+      - TlsRouteParentRefs
+      - TcpRouteParentRefs
+      - UdpRouteParentRefs
+      - HttpRouteStatusParentsParentRef
+      - GrpcRouteStatusParentsParentRef
+      - TlsRouteStatusParentsParentRef
+      - TcpRouteStatusParentsParentRef
+      - UdpRouteStatusParentsParentRef
+      - BackendTlsPolicyStatusAncestorsAncestorRef
+      - XBackendTrafficPolicyStatusAncestorsAncestorRef
+  - go: GatewayDefaultScope
+    placement: common
+    kopium:
+      - GatewayDefaultScope
+      - HttpRouteUseDefaultGateways
+      - GrpcRouteUseDefaultGateways
+      - TlsRouteUseDefaultGateways
+      - TcpRouteUseDefaultGateways
+      - UdpRouteUseDefaultGateways
+  - go: BackendRef
+    placement: common
+    kopium:
+      - TlsRouteRulesBackendRefs
+      - TcpRouteRulesBackendRefs
+      - UdpRouteRulesBackendRefs
+  - go: RouteParentStatus
+    placement: common
+    kopium:
+      - HttpRouteStatusParents
+      - GrpcRouteStatusParents
+      - TlsRouteStatusParents
+      - TcpRouteStatusParents
+      - UdpRouteStatusParents
+  - go: LocalObjectReference
+    placement: common
+    kopium:
+      - HttpRouteRulesFiltersExtensionRef
+      - HttpRouteRulesBackendRefsFiltersExtensionRef
+      - GrpcRouteRulesFiltersExtensionRef
+      - GrpcRouteRulesBackendRefsFiltersExtensionRef
+      - BackendTlsPolicyValidationCaCertificateRefs
+  - go: SecretObjectReference
+    placement: common
+    kopium:
+      - GatewayListenersTlsCertificateRefs
+      - ListenerSetListenersTlsCertificateRefs
+      - GatewayTlsBackendClientCertificateRef
+  - go: BackendObjectReference
+    placement: common
+    kopium:
+      - HttpRouteRulesFiltersRequestMirrorBackendRef
+      - HttpRouteRulesBackendRefsFiltersRequestMirrorBackendRef
+      - GrpcRouteRulesFiltersRequestMirrorBackendRef
+      - GrpcRouteRulesBackendRefsFiltersRequestMirrorBackendRef
+      - HttpRouteRulesFiltersExternalAuthBackendRef
+      - HttpRouteRulesBackendRefsFiltersExternalAuthBackendRef
+  - go: ObjectReference
+    placement: common
+    kopium:
+      - GatewayTlsFrontendDefaultValidationCaCertificateRefs
+      - GatewayTlsFrontendPerPortTlsValidationCaCertificateRefs
+  - go: ParentGatewayReference
+    placement: common
+    kopium:
+      - ListenerSetParentRef
+  - go: LocalPolicyTargetReference
+    placement: common
+    kopium:
+      - XBackendTrafficPolicyTargetRefs
+  - go: LocalPolicyTargetReferenceWithSectionName
+    placement: common
+    kopium:
+      - BackendTlsPolicyTargetRefs
+  - go: PolicyStatus
+    placement: common
+    kopium:
+      - BackendTlsPolicyStatus
+      - XBackendTrafficPolicyStatus
+  - go: PolicyAncestorStatus
+    placement: common
+    kopium:
+      - BackendTlsPolicyStatusAncestors
+      - XBackendTrafficPolicyStatusAncestors
+  - go: SessionPersistence
+    placement: common
+    kopium:
+      - HttpRouteRulesSessionPersistence
+      - GrpcRouteRulesSessionPersistence
+      - XBackendTrafficPolicySessionPersistence
+  - go: SessionPersistenceType
+    placement: common
+    kopium:
+      - HttpRouteRulesSessionPersistenceType
+      - GrpcRouteRulesSessionPersistenceType
+      - XBackendTrafficPolicySessionPersistenceType
+  - go: CookieConfig
+    placement: common
+    kopium:
+      - HttpRouteRulesSessionPersistenceCookieConfig
+      - GrpcRouteRulesSessionPersistenceCookieConfig
+      - XBackendTrafficPolicySessionPersistenceCookieConfig
+  - go: CookieLifetimeType
+    placement: common
+    kopium:
+      - HttpRouteRulesSessionPersistenceCookieConfigLifetimeType
+      - GrpcRouteRulesSessionPersistenceCookieConfigLifetimeType
+      - XBackendTrafficPolicySessionPersistenceCookieConfigLifetimeType
+  - go: Fraction
+    placement: common
+    kopium:
+      - HttpRouteRulesFiltersRequestMirrorFraction
+      - HttpRouteRulesBackendRefsFiltersRequestMirrorFraction
+      - GrpcRouteRulesFiltersRequestMirrorFraction
+      - GrpcRouteRulesBackendRefsFiltersRequestMirrorFraction
+  - go: RequestRate
+    placement: common
+    kopium:
+      - XBackendTrafficPolicyRetryConstraintMinRetryRate
+  - go: HTTPHeaderFilter
+    placement: common
+    kopium:
+      - HttpRouteRulesFiltersRequestHeaderModifier
+      - HttpRouteRulesFiltersResponseHeaderModifier
+      - HttpRouteRulesBackendRefsFiltersRequestHeaderModifier
+      - HttpRouteRulesBackendRefsFiltersResponseHeaderModifier
+      - GrpcRouteRulesFiltersRequestHeaderModifier
+      - GrpcRouteRulesFiltersResponseHeaderModifier
+      - GrpcRouteRulesBackendRefsFiltersRequestHeaderModifier
+      - GrpcRouteRulesBackendRefsFiltersResponseHeaderModifier
+  - go: HTTPHeader
+    placement: common
+    kopium:
+      - HttpRouteRulesFiltersRequestHeaderModifierAdd
+      - HttpRouteRulesFiltersRequestHeaderModifierSet
+      - HttpRouteRulesFiltersResponseHeaderModifierAdd
+      - HttpRouteRulesFiltersResponseHeaderModifierSet
+      - HttpRouteRulesBackendRefsFiltersRequestHeaderModifierAdd
+      - HttpRouteRulesBackendRefsFiltersRequestHeaderModifierSet
+      - HttpRouteRulesBackendRefsFiltersResponseHeaderModifierAdd
+      - HttpRouteRulesBackendRefsFiltersResponseHeaderModifierSet
+      - GrpcRouteRulesFiltersRequestHeaderModifierAdd
+      - GrpcRouteRulesFiltersRequestHeaderModifierSet
+      - GrpcRouteRulesFiltersResponseHeaderModifierAdd
+      - GrpcRouteRulesFiltersResponseHeaderModifierSet
+      - GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierAdd
+      - GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierSet
+      - GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierAdd
+      - GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierSet
+  - go: HTTPRequestMirrorFilter
+    placement: common
+    kopium:
+      - HttpRouteRulesFiltersRequestMirror
+      - HttpRouteRulesBackendRefsFiltersRequestMirror
+      - GrpcRouteRulesFiltersRequestMirror
+      - GrpcRouteRulesBackendRefsFiltersRequestMirror
+  - go: AllowedRoutes
+    placement: common
+    kopium:
+      - GatewayListenersAllowedRoutes
+      - ListenerSetListenersAllowedRoutes
+  - go: RouteNamespaces
+    placement: common
+    kopium:
+      - GatewayListenersAllowedRoutesNamespaces
+      - ListenerSetListenersAllowedRoutesNamespaces
+  # Not `GatewayAllowedListenersNamespacesFrom`: that field allows `None` too,
+  # and has a different default.
+  - go: FromNamespaces
+    placement: common
+    kopium:
+      - GatewayListenersAllowedRoutesNamespacesFrom
+      - ListenerSetListenersAllowedRoutesNamespacesFrom
+  - go: RouteGroupKind
+    placement: common
+    kopium:
+      - GatewayListenersAllowedRoutesKinds
+      - ListenerSetListenersAllowedRoutesKinds
+      - GatewayStatusListenersSupportedKinds
+      - ListenerSetStatusListenersSupportedKinds
+  - go: ListenerTLSConfig
+    placement: common
+    kopium:
+      - GatewayListenersTls
+      - ListenerSetListenersTls
+  - go: TLSModeType
+    placement: common
+    kopium:
+      - GatewayListenersTlsMode
+      - ListenerSetListenersTlsMode
+  - go: ParametersReference
+    placement: common
+    kopium:
+      - GatewayClassParametersRef
+      - XMeshParametersRef
+  - go: SupportedFeature
+    placement: common
+    kopium:
+      - GatewayClassStatusSupportedFeatures
+      - XMeshStatusSupportedFeatures
+
+# Groups of types that share a shape but are distinct upstream. In each
+# channel, every group of shape-identical types, restricted to the names the
+# channel generates, must equal one of these; generation fails on a group that
+# no longer shares a shape in any channel.
+distinct:
+  - [LocalObjectReference, GatewayInfrastructureParametersRef,
+     LocalPolicyTargetReference]
+  - [ObjectReference, ParametersReference]
+  - [SecretObjectReference, ParentGatewayReference]
+  # HTTPHeaderMatch, HTTPQueryParamMatch, GRPCHeaderMatch
+  - [HttpRouteRulesMatchesHeaders, HttpRouteRulesMatchesQueryParams,
+     GrpcRouteRulesMatchesHeaders]
+  # HeaderMatchType, QueryParamMatchType, GRPCHeaderMatchType, GRPCMethodMatchType
+  - [HttpRouteRulesMatchesHeadersType, HttpRouteRulesMatchesQueryParamsType,
+     GrpcRouteRulesMatchesHeadersType, GrpcRouteRulesMatchesMethodType]
+  # TCPRouteRule, TLSRouteRule, UDPRouteRule
+  - [TcpRouteRules, TlsRouteRules, UdpRouteRules]
+  # Listener, ListenerEntry
+  - [GatewayListeners, ListenerSetListeners]
+  # ListenerStatus, ListenerEntryStatus
+  - [GatewayStatusListeners, ListenerSetStatusListeners]
+  - [HttpRouteStatus, GrpcRouteStatus, TlsRouteStatus, TcpRouteStatus,
+     UdpRouteStatus]
+  - [TcpRouteSpec, UdpRouteSpec]
+  - [GatewayClassSpec, XMeshSpec]
+  - [GatewayClassStatus, XMeshStatus]
+  # TODO(phase 3): removed by the per-resource Go types.
+  - [HttpRouteRulesFilters, HttpRouteRulesBackendRefsFilters]
+  - [HttpRouteRulesFiltersType, HttpRouteRulesBackendRefsFiltersType]
+  - [HttpRouteRulesFiltersCors, HttpRouteRulesBackendRefsFiltersCors]
+  - [HttpRouteRulesFiltersRequestRedirect,
+     HttpRouteRulesBackendRefsFiltersRequestRedirect]
+  - [HttpRouteRulesFiltersRequestRedirectScheme,
+     HttpRouteRulesBackendRefsFiltersRequestRedirectScheme]
+  - [HttpRouteRulesFiltersRequestRedirectStatusCode,
+     HttpRouteRulesBackendRefsFiltersRequestRedirectStatusCode]
+  - [HttpRouteRulesFiltersUrlRewrite,
+     HttpRouteRulesBackendRefsFiltersUrlRewrite]
+  - [HttpRouteRulesFiltersRequestRedirectPath,
+     HttpRouteRulesFiltersUrlRewritePath,
+     HttpRouteRulesBackendRefsFiltersRequestRedirectPath,
+     HttpRouteRulesBackendRefsFiltersUrlRewritePath]
+  - [HttpRouteRulesFiltersRequestRedirectPathType,
+     HttpRouteRulesFiltersUrlRewritePathType,
+     HttpRouteRulesBackendRefsFiltersRequestRedirectPathType,
+     HttpRouteRulesBackendRefsFiltersUrlRewritePathType]
+  - [HttpRouteRulesFiltersExternalAuth,
+     HttpRouteRulesBackendRefsFiltersExternalAuth]
+  - [HttpRouteRulesFiltersExternalAuthProtocol,
+     HttpRouteRulesBackendRefsFiltersExternalAuthProtocol]
+  - [HttpRouteRulesFiltersExternalAuthGrpc,
+     HttpRouteRulesBackendRefsFiltersExternalAuthGrpc]
+  - [HttpRouteRulesFiltersExternalAuthHttp,
+     HttpRouteRulesBackendRefsFiltersExternalAuthHttp]
+  - [HttpRouteRulesFiltersExternalAuthForwardBody,
+     HttpRouteRulesBackendRefsFiltersExternalAuthForwardBody]
+  - [GrpcRouteRulesFilters, GrpcRouteRulesBackendRefsFilters]
+  - [GrpcRouteRulesFiltersType, GrpcRouteRulesBackendRefsFiltersType]
+  - [GatewayTlsFrontendDefault, GatewayTlsFrontendPerPortTls]
+  - [GatewayTlsFrontendDefaultValidation,
+     GatewayTlsFrontendPerPortTlsValidation]
+  - [GatewayTlsFrontendDefaultValidationMode,
+     GatewayTlsFrontendPerPortTlsValidationMode]
+  # TODO(phase 5): removed by `k8s-openapi`'s `LabelSelector`.
+  - [RouteNamespacesSelectorMatchExpressions,
+     GatewayAllowedListenersNamespacesSelectorMatchExpressions]

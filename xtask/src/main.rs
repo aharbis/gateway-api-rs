@@ -16,7 +16,7 @@ use anyhow::{Context, Result, bail};
 use proc_macro2::Span;
 use serde::Deserialize;
 
-use crate::shared_types::{DISTINCT, SHARED_TYPES};
+use crate::shared_types::Table;
 
 mod consolidate;
 mod shared_types;
@@ -312,20 +312,21 @@ fn generate(version: &str) -> Result<()> {
         channels.push(generate_channel(version, channel)?);
     }
 
+    let table = Table::load()?;
     let mut matched_names = BTreeSet::new();
     let mut matched_distinct = BTreeSet::new();
     for channel in &mut channels {
-        consolidate_channel(channel, &mut matched_names, &mut matched_distinct)?;
+        consolidate_channel(channel, &table, &mut matched_names, &mut matched_distinct)?;
     }
-    for entry in SHARED_TYPES {
-        if let Some(name) = entry.kopium.iter().find(|name| !matched_names.contains(*name)) {
+    for entry in &table.shared_types {
+        if let Some(name) = entry.kopium.iter().find(|name| !matched_names.contains(name.as_str())) {
             bail!("shared type {go}: {name} matches no generated type", go = entry.go);
         }
     }
-    for (index, group) in DISTINCT.iter().enumerate() {
+    for (index, group) in table.distinct.iter().enumerate() {
         if !matched_distinct.contains(&index) {
             let group = group.join(", ");
-            bail!("DISTINCT group no longer shares a shape in any channel: {group}");
+            bail!("distinct group no longer shares a shape in any channel: {group}");
         }
     }
 
@@ -393,9 +394,10 @@ fn generate_channel(version: &str, channel: &'static Channel) -> Result<Generate
 /// Moves a channel's shared types into its `common` module, checks that no
 /// unclassified duplicates remain, then adds the enum defaults, which are
 /// keyed by the consolidated names.
-fn consolidate_channel(
+fn consolidate_channel<'t>(
     generated: &mut GeneratedChannel,
-    matched_names: &mut BTreeSet<&'static str>,
+    table: &'t Table,
+    matched_names: &mut BTreeSet<&'t str>,
     matched_distinct: &mut BTreeSet<usize>,
 ) -> Result<()> {
     let channel = generated.channel;
@@ -422,7 +424,7 @@ fn consolidate_channel(
         }
     }
 
-    let types = consolidate::consolidate(channel_name, SHARED_TYPES, &mut modules, matched_names)
+    let types = consolidate::consolidate(channel_name, &table.shared_types, &mut modules, matched_names)
         .with_context(|| format!("{channel_name}: consolidating shared types"))?;
     let named = consolidate::type_names(&types);
     let mut common = gen_common_prelude();
@@ -430,7 +432,7 @@ fn consolidate_channel(
 
     let mut files: Vec<&[syn::Item]> = modules.iter().map(|module| &module.file.items[..]).collect();
     files.push(&common);
-    consolidate::check_duplicates(channel_name, &files, &named, DISTINCT, matched_distinct)?;
+    consolidate::check_duplicates(channel_name, &files, &named, &table.distinct, matched_distinct)?;
 
     let mut unused: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
     for module in &mut modules {

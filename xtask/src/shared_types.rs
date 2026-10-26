@@ -1,23 +1,62 @@
 //! Which kopium types are one upstream Go type, and which types that share a
 //! shape are distinct upstream. The CRDs don't name their types, so these are
-//! kept by hand from the Go source. See `docs/specs/shared-types.md`.
+//! kept by hand from the Go source in `xtask/shared-types.yaml`. See
+//! `docs/specs/shared-types.md`.
 
+use std::collections::BTreeSet;
+
+use anyhow::{Context, Result, bail};
 use heck::ToUpperCamelCase;
+use serde::Deserialize;
+
+const TABLE_FILE: &str = "xtask/shared-types.yaml";
+
+/// Embedded, so the xtask rebuilds when the table changes.
+const TABLE_YAML: &str = include_str!("../shared-types.yaml");
+
+/// The hand-kept table.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Table {
+    /// In table order, which is the order types are generated in.
+    pub shared_types: Vec<SharedType>,
+    /// Groups of types that share a shape but are distinct upstream.
+    pub distinct: Vec<Vec<String>>,
+}
+
+impl Table {
+    pub fn load() -> Result<Self> {
+        Self::parse(TABLE_YAML).with_context(|| format!("invalid {TABLE_FILE}"))
+    }
+
+    /// Parses a table, failing on a Go name listed twice.
+    fn parse(yaml: &str) -> Result<Self> {
+        let table: Self = serde_saphyr::from_str(yaml)?;
+        let mut seen = BTreeSet::new();
+        if let Some(entry) = table.shared_types.iter().find(|entry| !seen.insert(&entry.go)) {
+            bail!("shared type {go} is listed twice", go = entry.go);
+        }
+        Ok(table)
+    }
+}
 
 /// Where a shared type's one definition is generated.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Placement {
     /// The channel's `common` module.
     Common,
 }
 
 /// An upstream Go type that kopium generates at more than one path.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SharedType {
     /// The Go type's name.
-    pub go: &'static str,
+    pub go: String,
     pub placement: Placement,
     /// Every kopium name the type replaces, in any channel or API version.
-    pub kopium: &'static [&'static str],
+    pub kopium: Vec<String>,
 }
 
 impl SharedType {
@@ -28,350 +67,39 @@ impl SharedType {
     }
 }
 
-const fn common(go: &'static str, kopium: &'static [&'static str]) -> SharedType {
-    SharedType {
-        go,
-        placement: Placement::Common,
-        kopium,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn table_loads() {
+        let table = Table::load().unwrap();
+        assert_eq!(table.shared_types[0].go, "ParentReference");
+    }
+
+    #[test]
+    fn repeated_go_names_fail() {
+        let yaml = "shared_types:\n  \
+                      - {go: Fraction, placement: common, kopium: [A]}\n  \
+                      - {go: Fraction, placement: common, kopium: [B]}\n\
+                    distinct: []\n";
+        let error = Table::parse(yaml).err().expect("parsing should fail");
+        assert_eq!(error.to_string(), "shared type Fraction is listed twice");
+    }
+
+    #[test]
+    fn rust_names_follow_kopium_casing() {
+        let name = |go: &str| {
+            SharedType {
+                go: go.to_string(),
+                placement: Placement::Common,
+                kopium: Vec::new(),
+            }
+            .rust_name()
+        };
+        assert_eq!(name("HTTPHeaderFilter"), "HttpHeaderFilter");
+        assert_eq!(name("ListenerTLSConfig"), "ListenerTlsConfig");
+        assert_eq!(name("TLSModeType"), "TlsModeType");
+        assert_eq!(name("ParentReference"), "ParentReference");
     }
 }
-
-pub const SHARED_TYPES: &[SharedType] = &[
-    common(
-        "ParentReference",
-        &[
-            "HttpRouteParentRefs",
-            "GrpcRouteParentRefs",
-            "TlsRouteParentRefs",
-            "TcpRouteParentRefs",
-            "UdpRouteParentRefs",
-            "HttpRouteStatusParentsParentRef",
-            "GrpcRouteStatusParentsParentRef",
-            "TlsRouteStatusParentsParentRef",
-            "TcpRouteStatusParentsParentRef",
-            "UdpRouteStatusParentsParentRef",
-            "BackendTlsPolicyStatusAncestorsAncestorRef",
-            "XBackendTrafficPolicyStatusAncestorsAncestorRef",
-        ],
-    ),
-    common(
-        "GatewayDefaultScope",
-        &[
-            "GatewayDefaultScope",
-            "HttpRouteUseDefaultGateways",
-            "GrpcRouteUseDefaultGateways",
-            "TlsRouteUseDefaultGateways",
-            "TcpRouteUseDefaultGateways",
-            "UdpRouteUseDefaultGateways",
-        ],
-    ),
-    common(
-        "BackendRef",
-        &[
-            "TlsRouteRulesBackendRefs",
-            "TcpRouteRulesBackendRefs",
-            "UdpRouteRulesBackendRefs",
-        ],
-    ),
-    common(
-        "RouteParentStatus",
-        &[
-            "HttpRouteStatusParents",
-            "GrpcRouteStatusParents",
-            "TlsRouteStatusParents",
-            "TcpRouteStatusParents",
-            "UdpRouteStatusParents",
-        ],
-    ),
-    common(
-        "LocalObjectReference",
-        &[
-            "HttpRouteRulesFiltersExtensionRef",
-            "HttpRouteRulesBackendRefsFiltersExtensionRef",
-            "GrpcRouteRulesFiltersExtensionRef",
-            "GrpcRouteRulesBackendRefsFiltersExtensionRef",
-            "BackendTlsPolicyValidationCaCertificateRefs",
-        ],
-    ),
-    common(
-        "SecretObjectReference",
-        &[
-            "GatewayListenersTlsCertificateRefs",
-            "ListenerSetListenersTlsCertificateRefs",
-            "GatewayTlsBackendClientCertificateRef",
-        ],
-    ),
-    common(
-        "BackendObjectReference",
-        &[
-            "HttpRouteRulesFiltersRequestMirrorBackendRef",
-            "HttpRouteRulesBackendRefsFiltersRequestMirrorBackendRef",
-            "GrpcRouteRulesFiltersRequestMirrorBackendRef",
-            "GrpcRouteRulesBackendRefsFiltersRequestMirrorBackendRef",
-            "HttpRouteRulesFiltersExternalAuthBackendRef",
-            "HttpRouteRulesBackendRefsFiltersExternalAuthBackendRef",
-        ],
-    ),
-    common(
-        "ObjectReference",
-        &[
-            "GatewayTlsFrontendDefaultValidationCaCertificateRefs",
-            "GatewayTlsFrontendPerPortTlsValidationCaCertificateRefs",
-        ],
-    ),
-    common("ParentGatewayReference", &["ListenerSetParentRef"]),
-    common("LocalPolicyTargetReference", &["XBackendTrafficPolicyTargetRefs"]),
-    common(
-        "LocalPolicyTargetReferenceWithSectionName",
-        &["BackendTlsPolicyTargetRefs"],
-    ),
-    common(
-        "PolicyStatus",
-        &["BackendTlsPolicyStatus", "XBackendTrafficPolicyStatus"],
-    ),
-    common(
-        "PolicyAncestorStatus",
-        &[
-            "BackendTlsPolicyStatusAncestors",
-            "XBackendTrafficPolicyStatusAncestors",
-        ],
-    ),
-    common(
-        "SessionPersistence",
-        &[
-            "HttpRouteRulesSessionPersistence",
-            "GrpcRouteRulesSessionPersistence",
-            "XBackendTrafficPolicySessionPersistence",
-        ],
-    ),
-    common(
-        "SessionPersistenceType",
-        &[
-            "HttpRouteRulesSessionPersistenceType",
-            "GrpcRouteRulesSessionPersistenceType",
-            "XBackendTrafficPolicySessionPersistenceType",
-        ],
-    ),
-    common(
-        "CookieConfig",
-        &[
-            "HttpRouteRulesSessionPersistenceCookieConfig",
-            "GrpcRouteRulesSessionPersistenceCookieConfig",
-            "XBackendTrafficPolicySessionPersistenceCookieConfig",
-        ],
-    ),
-    common(
-        "CookieLifetimeType",
-        &[
-            "HttpRouteRulesSessionPersistenceCookieConfigLifetimeType",
-            "GrpcRouteRulesSessionPersistenceCookieConfigLifetimeType",
-            "XBackendTrafficPolicySessionPersistenceCookieConfigLifetimeType",
-        ],
-    ),
-    common(
-        "Fraction",
-        &[
-            "HttpRouteRulesFiltersRequestMirrorFraction",
-            "HttpRouteRulesBackendRefsFiltersRequestMirrorFraction",
-            "GrpcRouteRulesFiltersRequestMirrorFraction",
-            "GrpcRouteRulesBackendRefsFiltersRequestMirrorFraction",
-        ],
-    ),
-    common("RequestRate", &["XBackendTrafficPolicyRetryConstraintMinRetryRate"]),
-    common(
-        "HTTPHeaderFilter",
-        &[
-            "HttpRouteRulesFiltersRequestHeaderModifier",
-            "HttpRouteRulesFiltersResponseHeaderModifier",
-            "HttpRouteRulesBackendRefsFiltersRequestHeaderModifier",
-            "HttpRouteRulesBackendRefsFiltersResponseHeaderModifier",
-            "GrpcRouteRulesFiltersRequestHeaderModifier",
-            "GrpcRouteRulesFiltersResponseHeaderModifier",
-            "GrpcRouteRulesBackendRefsFiltersRequestHeaderModifier",
-            "GrpcRouteRulesBackendRefsFiltersResponseHeaderModifier",
-        ],
-    ),
-    common(
-        "HTTPHeader",
-        &[
-            "HttpRouteRulesFiltersRequestHeaderModifierAdd",
-            "HttpRouteRulesFiltersRequestHeaderModifierSet",
-            "HttpRouteRulesFiltersResponseHeaderModifierAdd",
-            "HttpRouteRulesFiltersResponseHeaderModifierSet",
-            "HttpRouteRulesBackendRefsFiltersRequestHeaderModifierAdd",
-            "HttpRouteRulesBackendRefsFiltersRequestHeaderModifierSet",
-            "HttpRouteRulesBackendRefsFiltersResponseHeaderModifierAdd",
-            "HttpRouteRulesBackendRefsFiltersResponseHeaderModifierSet",
-            "GrpcRouteRulesFiltersRequestHeaderModifierAdd",
-            "GrpcRouteRulesFiltersRequestHeaderModifierSet",
-            "GrpcRouteRulesFiltersResponseHeaderModifierAdd",
-            "GrpcRouteRulesFiltersResponseHeaderModifierSet",
-            "GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierAdd",
-            "GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierSet",
-            "GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierAdd",
-            "GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierSet",
-        ],
-    ),
-    common(
-        "HTTPRequestMirrorFilter",
-        &[
-            "HttpRouteRulesFiltersRequestMirror",
-            "HttpRouteRulesBackendRefsFiltersRequestMirror",
-            "GrpcRouteRulesFiltersRequestMirror",
-            "GrpcRouteRulesBackendRefsFiltersRequestMirror",
-        ],
-    ),
-    common(
-        "AllowedRoutes",
-        &["GatewayListenersAllowedRoutes", "ListenerSetListenersAllowedRoutes"],
-    ),
-    common(
-        "RouteNamespaces",
-        &[
-            "GatewayListenersAllowedRoutesNamespaces",
-            "ListenerSetListenersAllowedRoutesNamespaces",
-        ],
-    ),
-    // Not `GatewayAllowedListenersNamespacesFrom`: that field allows `None` too,
-    // and has a different default.
-    common(
-        "FromNamespaces",
-        &[
-            "GatewayListenersAllowedRoutesNamespacesFrom",
-            "ListenerSetListenersAllowedRoutesNamespacesFrom",
-        ],
-    ),
-    common(
-        "RouteGroupKind",
-        &[
-            "GatewayListenersAllowedRoutesKinds",
-            "ListenerSetListenersAllowedRoutesKinds",
-            "GatewayStatusListenersSupportedKinds",
-            "ListenerSetStatusListenersSupportedKinds",
-        ],
-    ),
-    common("ListenerTLSConfig", &["GatewayListenersTls", "ListenerSetListenersTls"]),
-    common(
-        "TLSModeType",
-        &["GatewayListenersTlsMode", "ListenerSetListenersTlsMode"],
-    ),
-    common(
-        "ParametersReference",
-        &["GatewayClassParametersRef", "XMeshParametersRef"],
-    ),
-    common(
-        "SupportedFeature",
-        &["GatewayClassStatusSupportedFeatures", "XMeshStatusSupportedFeatures"],
-    ),
-];
-
-/// Groups of types that share a shape but are distinct upstream. In each
-/// channel, the names of every group of shape-identical types, restricted to
-/// those the channel generates, must equal one of these.
-pub const DISTINCT: &[&[&str]] = &[
-    // LocalObjectReference, LocalParametersReference, LocalPolicyTargetReference
-    &[
-        "LocalObjectReference",
-        "GatewayInfrastructureParametersRef",
-        "LocalPolicyTargetReference",
-    ],
-    &["ObjectReference", "ParametersReference"],
-    &["SecretObjectReference", "ParentGatewayReference"],
-    // HTTPHeaderMatch, HTTPQueryParamMatch, GRPCHeaderMatch
-    &[
-        "HttpRouteRulesMatchesHeaders",
-        "HttpRouteRulesMatchesQueryParams",
-        "GrpcRouteRulesMatchesHeaders",
-    ],
-    // HeaderMatchType, QueryParamMatchType, GRPCHeaderMatchType, GRPCMethodMatchType
-    &[
-        "HttpRouteRulesMatchesHeadersType",
-        "HttpRouteRulesMatchesQueryParamsType",
-        "GrpcRouteRulesMatchesHeadersType",
-        "GrpcRouteRulesMatchesMethodType",
-    ],
-    // TCPRouteRule, TLSRouteRule, UDPRouteRule
-    &["TcpRouteRules", "TlsRouteRules", "UdpRouteRules"],
-    // Listener, ListenerEntry
-    &["GatewayListeners", "ListenerSetListeners"],
-    // ListenerStatus, ListenerEntryStatus
-    &["GatewayStatusListeners", "ListenerSetStatusListeners"],
-    &[
-        "HttpRouteStatus",
-        "GrpcRouteStatus",
-        "TlsRouteStatus",
-        "TcpRouteStatus",
-        "UdpRouteStatus",
-    ],
-    &["TcpRouteSpec", "UdpRouteSpec"],
-    &["GatewayClassSpec", "XMeshSpec"],
-    &["GatewayClassStatus", "XMeshStatus"],
-    // TODO(phase 3): removed by the per-resource Go types.
-    &["HttpRouteRulesFilters", "HttpRouteRulesBackendRefsFilters"],
-    &["HttpRouteRulesFiltersType", "HttpRouteRulesBackendRefsFiltersType"],
-    &["HttpRouteRulesFiltersCors", "HttpRouteRulesBackendRefsFiltersCors"],
-    &[
-        "HttpRouteRulesFiltersRequestRedirect",
-        "HttpRouteRulesBackendRefsFiltersRequestRedirect",
-    ],
-    &[
-        "HttpRouteRulesFiltersRequestRedirectScheme",
-        "HttpRouteRulesBackendRefsFiltersRequestRedirectScheme",
-    ],
-    &[
-        "HttpRouteRulesFiltersRequestRedirectStatusCode",
-        "HttpRouteRulesBackendRefsFiltersRequestRedirectStatusCode",
-    ],
-    &[
-        "HttpRouteRulesFiltersUrlRewrite",
-        "HttpRouteRulesBackendRefsFiltersUrlRewrite",
-    ],
-    &[
-        "HttpRouteRulesFiltersRequestRedirectPath",
-        "HttpRouteRulesFiltersUrlRewritePath",
-        "HttpRouteRulesBackendRefsFiltersRequestRedirectPath",
-        "HttpRouteRulesBackendRefsFiltersUrlRewritePath",
-    ],
-    &[
-        "HttpRouteRulesFiltersRequestRedirectPathType",
-        "HttpRouteRulesFiltersUrlRewritePathType",
-        "HttpRouteRulesBackendRefsFiltersRequestRedirectPathType",
-        "HttpRouteRulesBackendRefsFiltersUrlRewritePathType",
-    ],
-    &[
-        "HttpRouteRulesFiltersExternalAuth",
-        "HttpRouteRulesBackendRefsFiltersExternalAuth",
-    ],
-    &[
-        "HttpRouteRulesFiltersExternalAuthProtocol",
-        "HttpRouteRulesBackendRefsFiltersExternalAuthProtocol",
-    ],
-    &[
-        "HttpRouteRulesFiltersExternalAuthGrpc",
-        "HttpRouteRulesBackendRefsFiltersExternalAuthGrpc",
-    ],
-    &[
-        "HttpRouteRulesFiltersExternalAuthHttp",
-        "HttpRouteRulesBackendRefsFiltersExternalAuthHttp",
-    ],
-    &[
-        "HttpRouteRulesFiltersExternalAuthForwardBody",
-        "HttpRouteRulesBackendRefsFiltersExternalAuthForwardBody",
-    ],
-    &["GrpcRouteRulesFilters", "GrpcRouteRulesBackendRefsFilters"],
-    &["GrpcRouteRulesFiltersType", "GrpcRouteRulesBackendRefsFiltersType"],
-    &["GatewayTlsFrontendDefault", "GatewayTlsFrontendPerPortTls"],
-    &[
-        "GatewayTlsFrontendDefaultValidation",
-        "GatewayTlsFrontendPerPortTlsValidation",
-    ],
-    &[
-        "GatewayTlsFrontendDefaultValidationMode",
-        "GatewayTlsFrontendPerPortTlsValidationMode",
-    ],
-    // TODO(phase 5): removed by `k8s-openapi`'s `LabelSelector`.
-    &[
-        "RouteNamespacesSelectorMatchExpressions",
-        "GatewayAllowedListenersNamespacesSelectorMatchExpressions",
-    ],
-];

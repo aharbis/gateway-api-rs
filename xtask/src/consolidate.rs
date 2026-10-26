@@ -42,11 +42,11 @@ struct Rename<'t> {
 /// root versions first, they decide which instance documents a shared type.
 /// Returns the `common` module's types, and adds every kopium name `table`
 /// matched to `matched`.
-pub fn consolidate(
+pub fn consolidate<'t>(
     channel: &str,
-    table: &'static [SharedType],
+    table: &'t [SharedType],
     modules: &mut [Module<'_>],
-    matched: &mut BTreeSet<&'static str>,
+    matched: &mut BTreeSet<&'t str>,
 ) -> Result<Vec<syn::Item>> {
     let items: Vec<_> = modules.iter().map(|module| item_indices(&module.file.items)).collect();
     let renames = plan_renames(table, modules, &items, matched)?;
@@ -116,7 +116,7 @@ fn plan_renames<'t>(
 ) -> Result<BTreeMap<String, Rename<'t>>> {
     let mut renames = BTreeMap::new();
     for entry in table {
-        for &kopium in entry.kopium {
+        for kopium in &entry.kopium {
             if !items.iter().any(|names| names.contains_key(kopium)) {
                 continue;
             }
@@ -125,8 +125,8 @@ fn plan_renames<'t>(
                 name: entry.rust_name(),
                 entry: Some(entry),
             };
-            if let Some(other) = renames.insert(kopium.to_string(), rename) {
-                let (go, other_go) = (entry.go, other.entry.map_or("", |entry| entry.go));
+            if let Some(other) = renames.insert(kopium.clone(), rename) {
+                let (go, other_go) = (&entry.go, other.entry.map_or("", |entry| &entry.go));
                 bail!("{kopium} is listed by both {other_go} and {go}");
             }
         }
@@ -387,7 +387,7 @@ fn emit_common(
             // A shared type's own doc starts with its Go name; others are a
             // field's.
             let site = entry
-                .and_then(|entry| sites.iter().find(|site| self.doc_starts_with(site, entry.go)))
+                .and_then(|entry| sites.iter().find(|site| self.doc_starts_with(site, &entry.go)))
                 .unwrap_or(&sites[0]);
             let original = &self.modules[site.module].file.items[site.item];
 
@@ -398,7 +398,7 @@ fn emit_common(
             let renames = self.renames;
             rewrite_refs(&mut item, &mut |old| Some(renamed_path(renames.get(old)?)));
             if let Some(entry) = entry {
-                add_upstream_doc(&mut item, entry.go);
+                add_upstream_doc(&mut item, &entry.go);
             }
             self.out.push(item);
 
@@ -585,7 +585,7 @@ pub fn check_duplicates(
     channel: &str,
     files: &[&[syn::Item]],
     named: &BTreeSet<String>,
-    distinct: &[&[&str]],
+    distinct: &[Vec<String>],
     matched: &mut BTreeSet<usize>,
 ) -> Result<()> {
     let named = |name: &str| named.contains(name).then(|| name.to_string());
@@ -602,7 +602,11 @@ pub fn check_duplicates(
     let mut unclassified = Vec::new();
     for names in groups.values().filter(|names| names.len() > 1) {
         let found = distinct.iter().position(|group| {
-            let group: BTreeSet<&str> = group.iter().copied().filter(|name| generated.contains(name)).collect();
+            let group: BTreeSet<&str> = group
+                .iter()
+                .map(String::as_str)
+                .filter(|name| generated.contains(name))
+                .collect();
             group.len() == names.len() && names.iter().all(|name| group.contains(name.as_str()))
         });
         match found {
@@ -615,8 +619,8 @@ pub fn check_duplicates(
     if !unclassified.is_empty() {
         let groups = unclassified.join("\n  ");
         bail!(
-            "{channel}: these types share a shape, but neither the shared types table nor its DISTINCT list \
-             classifies them:\n  {groups}"
+            "{channel}: these types share a shape, but neither shared_types nor distinct in \
+             xtask/shared-types.yaml classifies them:\n  {groups}"
         );
     }
     Ok(())
@@ -631,11 +635,13 @@ mod tests {
     use super::*;
     use crate::shared_types::Placement;
 
-    static TABLE: &[SharedType] = &[SharedType {
-        go: "ParentRef",
-        placement: Placement::Common,
-        kopium: &["AParent", "BParents", "CParent"],
-    }];
+    fn table() -> Vec<SharedType> {
+        vec![SharedType {
+            go: "ParentRef".into(),
+            placement: Placement::Common,
+            kopium: ["AParent", "BParents", "CParent"].map(String::from).to_vec(),
+        }]
+    }
 
     fn module_a() -> syn::File {
         syn::parse_quote! {
@@ -673,7 +679,7 @@ mod tests {
         }
     }
 
-    fn run(files: &mut [syn::File]) -> Result<(Vec<syn::Item>, BTreeSet<&'static str>)> {
+    fn run(files: &mut [syn::File]) -> Result<(Vec<syn::Item>, BTreeSet<String>)> {
         let mut modules: Vec<_> = files
             .iter_mut()
             .enumerate()
@@ -682,9 +688,10 @@ mod tests {
                 file,
             })
             .collect();
+        let table = table();
         let mut matched = BTreeSet::new();
-        let common = consolidate("standard", TABLE, &mut modules, &mut matched)?;
-        Ok((common, matched))
+        let common = consolidate("standard", &table, &mut modules, &mut matched)?;
+        Ok((common, matched.into_iter().map(String::from).collect()))
     }
 
     fn item<'a>(items: &'a [syn::Item], name: &str) -> &'a syn::Item {
@@ -710,7 +717,7 @@ mod tests {
             type_names(&common),
             BTreeSet::from(["ParentRef".into(), "ParentRefKind".into()])
         );
-        assert_eq!(matched, BTreeSet::from(["AParent", "BParents"]));
+        assert_eq!(matched, BTreeSet::from(["AParent".into(), "BParents".into()]));
 
         // Docs come from the instance whose doc names the Go type, plus the
         // upstream line.
@@ -793,8 +800,12 @@ mod tests {
 
     fn check(files: &[syn::File], distinct: &[&[&str]]) -> Result<BTreeSet<usize>> {
         let files: Vec<&[syn::Item]> = files.iter().map(|file| &file.items[..]).collect();
+        let distinct: Vec<Vec<String>> = distinct
+            .iter()
+            .map(|group| group.iter().map(ToString::to_string).collect())
+            .collect();
         let mut matched = BTreeSet::new();
-        check_duplicates("standard", &files, &BTreeSet::new(), distinct, &mut matched)?;
+        check_duplicates("standard", &files, &BTreeSet::new(), &distinct, &mut matched)?;
         Ok(matched)
     }
 
@@ -829,21 +840,5 @@ mod tests {
         let error = check(&files, distinct).unwrap_err().to_string();
         let groups: Vec<&str> = error.lines().skip(1).map(str::trim).collect();
         assert_eq!(groups, ["AParent, BParents"]);
-    }
-
-    #[test]
-    fn rust_names_follow_kopium_casing() {
-        let name = |go| {
-            SharedType {
-                go,
-                placement: Placement::Common,
-                kopium: &[],
-            }
-            .rust_name()
-        };
-        assert_eq!(name("HTTPHeaderFilter"), "HttpHeaderFilter");
-        assert_eq!(name("ListenerTLSConfig"), "ListenerTlsConfig");
-        assert_eq!(name("TLSModeType"), "TlsModeType");
-        assert_eq!(name("ParentReference"), "ParentReference");
     }
 }
