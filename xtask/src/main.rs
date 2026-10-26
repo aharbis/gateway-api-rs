@@ -13,6 +13,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use proc_macro2::Span;
 use serde::Deserialize;
 
 // -----------------------------------------------------------------------------
@@ -273,24 +274,43 @@ fn main() -> Result<()> {
 // Generation orchestration
 // -----------------------------------------------------------------------------
 
-/// What generation produced for one resource, for the tests' `apis!`.
+/// One channel's generated bindings, held in memory until every channel has
+/// generated, so a failure leaves the tree untouched.
+struct GeneratedChannel {
+    channel: &'static Channel,
+    resources: Vec<GeneratedResource>,
+}
+
+/// One resource's generated bindings.
 struct GeneratedResource {
-    name: &'static str,
+    api: &'static Api,
+    crd: FetchedCrd,
     /// The root type kopium generated, e.g. `HttpRoute`.
     root_type: String,
-    /// Every API version the CRD defines.
-    versions: Vec<String>,
+    /// One module per API version the CRD defines, in CRD order.
+    versions: Vec<VersionModule>,
+}
+
+/// One API version's module: kopium's output, parsed.
+struct VersionModule {
+    api_version: String,
+    /// Module docs and kopium's header comments, which `syn` doesn't keep.
+    header: String,
+    file: syn::File,
 }
 
 fn generate(version: &str) -> Result<()> {
     let mut channels = Vec::new();
     for channel in [&STANDARD, &EXPERIMENTAL] {
-        channels.push((channel, generate_channel(version, channel)?));
+        channels.push(generate_channel(version, channel)?);
+    }
+    for channel in &channels {
+        write_channel(version, channel)?;
     }
     write_apis_module()?;
-    for (_, resources) in &channels {
-        for resource in resources {
-            write_test_stub(resource.name)?;
+    for channel in &channels {
+        for resource in &channel.resources {
+            write_test_stub(resource.api.name)?;
         }
     }
     fs::write(TEST_APIS_FILE, gen_test_apis(&channels))?;
@@ -298,7 +318,57 @@ fn generate(version: &str) -> Result<()> {
     Ok(())
 }
 
-fn generate_channel(version: &str, channel: &Channel) -> Result<Vec<GeneratedResource>> {
+fn generate_channel(version: &str, channel: &'static Channel) -> Result<GeneratedChannel> {
+    let channel_name = channel.name;
+    let mut unused_defaults: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
+    let mut resources = Vec::new();
+
+    // Fetch CRDs and run kopium once per API version
+    for api in channel.apis {
+        let api_name = api.name;
+        let root_version = api.root_version;
+        let crd = fetch_crd(version, channel_name, api)?;
+
+        let Some(root) = crd.spec.versions.iter().find(|v| v.name == root_version) else {
+            bail!("{channel_name} {api_name}: root version {root_version} is not defined by the CRD");
+        };
+        if !root.served {
+            bail!("{channel_name} {api_name}: root version {root_version} is not served by the CRD");
+        }
+
+        let mut root_types = BTreeSet::new();
+        let mut versions = Vec::new();
+        for crd_version in &crd.spec.versions {
+            let module = generate_version(version, channel, api, &crd, crd_version, &mut unused_defaults)?;
+            let api_version = &module.api_version;
+            let root_type =
+                root_type(&module.file).with_context(|| format!("{channel_name} {api_name} {api_version}"))?;
+            root_types.insert(root_type);
+            versions.push(module);
+        }
+        let root_type = match root_types.pop_first() {
+            Some(root_type) if root_types.is_empty() => root_type,
+            _ => bail!("{channel_name} {api_name}: API versions don't share one root type"),
+        };
+
+        resources.push(GeneratedResource {
+            api,
+            crd,
+            root_type,
+            versions,
+        });
+    }
+
+    if let Some(name) = unused_defaults.first() {
+        bail!("{channel_name}: enum default for {name} matches no generated enum");
+    }
+
+    Ok(GeneratedChannel { channel, resources })
+}
+
+/// Replaces a channel's bindings and CRD fixtures with what was generated.
+fn write_channel(bundle: &str, generated: &GeneratedChannel) -> Result<()> {
+    let GeneratedChannel { channel, resources } = generated;
     let channel_name = channel.name;
     let dir = format!("{APIS_DIR}/{channel_name}");
     let fixtures_dir = format!("{CRD_FIXTURES_DIR}/{channel_name}");
@@ -312,64 +382,33 @@ fn generate_channel(version: &str, channel: &Channel) -> Result<Vec<GeneratedRes
         fs::create_dir_all(path)?;
     }
 
-    let mut unused_defaults: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
-    let mut resources = Vec::new();
-
-    // Fetch CRDs and run kopium once per API version
-    for api in channel.apis {
+    for GeneratedResource { api, crd, versions, .. } in resources {
         let api_name = api.name;
-        let root_version = api.root_version;
-        let crd = fetch_crd(version, channel_name, api)?;
         fs::write(
             format!(
                 "{fixtures_dir}/{crd_prefix}{api_name}.yaml",
                 crd_prefix = api.crd_prefix
             ),
-            gen_crd_fixture(version, &crd),
+            gen_crd_fixture(bundle, crd),
         )?;
 
-        let Some(root) = crd.spec.versions.iter().find(|v| v.name == root_version) else {
-            bail!("{channel_name} {api_name}: root version {root_version} is not defined by the CRD");
-        };
-        if !root.served {
-            bail!("{channel_name} {api_name}: root version {root_version} is not served by the CRD");
-        }
-
         fs::create_dir_all(format!("{dir}/{api_name}"))?;
-        let mut root_types = BTreeSet::new();
-        for crd_version in &crd.spec.versions {
-            let root_type = generate_version(version, channel, api, &crd, crd_version, &mut unused_defaults)?;
-            root_types.insert(root_type);
+        for module in versions {
+            let api_version = &module.api_version;
+            fs::write(
+                format!("{dir}/{api_name}/{api_version}.rs"),
+                print_version_module(module),
+            )?;
         }
-        let root_type = match root_types.pop_first() {
-            Some(root_type) if root_types.is_empty() => root_type,
-            _ => bail!("{channel_name} {api_name}: API versions don't share one root type"),
-        };
-
         fs::write(format!("{dir}/{api_name}.rs"), gen_resource_module(api, &crd.spec))?;
-        resources.push(GeneratedResource {
-            name: api_name,
-            root_type,
-            versions: crd.spec.versions.into_iter().map(|v| v.name).collect(),
-        });
     }
 
-    if let Some(name) = unused_defaults.first() {
-        bail!("{channel_name}: enum default for {name} matches no generated enum");
-    }
-
-    // Generate supporting files
-    let channel_module = gen_channel_module(channel);
-    let constants = gen_constants(channel.conditions);
-
-    fs::write(format!("{dir}.rs"), channel_module)?;
-    fs::write(format!("{dir}/constants.rs"), constants)?;
-
-    Ok(resources)
+    fs::write(format!("{dir}.rs"), gen_channel_module(channel))?;
+    fs::write(format!("{dir}/constants.rs"), gen_constants(channel.conditions))?;
+    Ok(())
 }
 
-/// Runs kopium for one API version of a CRD and writes its module file.
-/// Returns the name of the generated root type.
+/// Runs kopium for one API version of a CRD and parses its output.
 fn generate_version(
     bundle: &str,
     channel: &Channel,
@@ -377,8 +416,7 @@ fn generate_version(
     crd: &FetchedCrd,
     crd_version: &CrdVersion,
     unused_defaults: &mut BTreeSet<&'static str>,
-) -> Result<String> {
-    let spec = &crd.spec;
+) -> Result<VersionModule> {
     let channel_name = channel.name;
     let api_name = api.name;
     let api_version = &crd_version.name;
@@ -386,31 +424,87 @@ fn generate_version(
     eprintln!("generating {channel_name} api {api_name} {api_version}");
     let kopium_rs = kopium(&crd.yaml, api_version)
         .with_context(|| format!("kopium failed for {channel_name} {api_name} {api_version}"))?;
+    let (kopium_header, mut file) =
+        parse_kopium(&kopium_rs).with_context(|| format!("{channel_name} {api_name} {api_version}"))?;
+    add_enum_defaults(&mut file, channel.enum_defaults, unused_defaults);
 
-    let mut rs = gen_version_doc(bundle, channel, spec, crd_version);
-    rs.push_str(&kopium_rs);
-    rs.push_str(&gen_enum_defaults(&kopium_rs, channel.enum_defaults, unused_defaults));
-    fs::write(format!("{APIS_DIR}/{channel_name}/{api_name}/{api_version}.rs"), rs)?;
-
-    root_type(&kopium_rs).with_context(|| format!("{channel_name} {api_name} {api_version}"))
+    let mut header = gen_version_doc(bundle, channel, &crd.spec, crd_version);
+    header.push_str(kopium_header);
+    Ok(VersionModule {
+        api_version: api_version.clone(),
+        header,
+        file,
+    })
 }
 
-/// Reads the root type name from kopium's `#[kube(group = ...)]` line: `root`
-/// when kopium renamed the kind (`HTTPRoute` to `HttpRoute`), else `kind`.
-/// Only that line is read, so the CRD's descriptions, which kopium writes as
-/// doc comments, can't match.
-fn root_type(kopium_rs: &str) -> Result<String> {
-    let line = kopium_rs
-        .lines()
-        .find(|line| line.starts_with("#[kube(group = "))
-        .context("no `#[kube(group = ...)]` line in kopium output")?;
-    let value = |key: &str| {
-        let (_, rest) = line.split_once(&format!(" {key} = \""))?;
-        rest.split_once('"').map(|(value, _)| value.to_string())
-    };
-    value("root")
-        .or_else(|| value("kind"))
-        .with_context(|| format!("no `root` or `kind` in `{line}`"))
+/// Splits kopium's output into its header comments and the parsed items.
+/// `syn` drops ordinary comments, so the header is kept as text, and any
+/// other ordinary comment is an error rather than lost.
+fn parse_kopium(kopium_rs: &str) -> Result<(&str, syn::File)> {
+    let is_comment = |line: &str| line.starts_with("//") && !line.starts_with("///") && !line.starts_with("//!");
+    let header_len = kopium_rs
+        .split_inclusive('\n')
+        .take_while(|line| is_comment(line) || line.trim().is_empty())
+        .map(str::len)
+        .sum();
+    let (header, body) = kopium_rs.split_at(header_len);
+    if let Some(line) = body.lines().find(|line| is_comment(line.trim_start())) {
+        bail!("kopium output has a comment outside its header, which would be lost: {line}");
+    }
+    let file = syn::parse_file(body).context("failed to parse kopium output")?;
+    Ok((header, file))
+}
+
+/// Prints a version module: its header, then its items. Items are printed one
+/// at a time so they can be separated by blank lines, which `prettyplease`
+/// doesn't add.
+fn print_version_module(module: &VersionModule) -> String {
+    let VersionModule { header, file, .. } = module;
+    let items = file
+        .items
+        .iter()
+        .map(|item| {
+            prettyplease::unparse(&syn::File {
+                shebang: None,
+                frontmatter: None,
+                attrs: Vec::new(),
+                items: vec![item.clone()],
+            })
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{header}{items}")
+}
+
+/// Reads the root type name from kopium's `#[kube(group = ...)]` attribute:
+/// `root` when kopium renamed the kind (`HTTPRoute` to `HttpRoute`), else
+/// `kind`.
+fn root_type(file: &syn::File) -> Result<String> {
+    let attrs = file.items.iter().filter_map(|item| match item {
+        syn::Item::Struct(item) => Some(&item.attrs),
+        _ => None,
+    });
+    for attr in attrs.flatten().filter(|attr| attr.path().is_ident("kube")) {
+        let (mut root, mut kind, mut group) = (None, None, false);
+        attr.parse_nested_meta(|meta| {
+            if !meta.input.peek(syn::Token![=]) {
+                return Ok(());
+            }
+            let value: syn::LitStr = meta.value()?.parse()?;
+            if meta.path.is_ident("root") {
+                root = Some(value.value());
+            } else if meta.path.is_ident("kind") {
+                kind = Some(value.value());
+            } else if meta.path.is_ident("group") {
+                group = true;
+            }
+            Ok(())
+        })?;
+        if group {
+            return root.or(kind).context("no `root` or `kind` in `#[kube(group = ...)]`");
+        }
+    }
+    bail!("no `#[kube(group = ...)]` attribute in kopium output")
 }
 
 fn write_apis_module() -> Result<()> {
@@ -604,30 +698,28 @@ fn gen_version_doc(bundle: &str, channel: &Channel, spec: &CrdSpec, v: &CrdVersi
     )
 }
 
-/// Generates `Default` impls for the enums in `kopium_rs` that kopium cannot
-/// derive one for, removing each matched entry from `unused`.
-fn gen_enum_defaults(
-    kopium_rs: &str,
-    defaults: &[(&'static str, &str)],
-    unused: &mut BTreeSet<&'static str>,
-) -> String {
-    let mut out = String::new();
+/// Adds `Default` impls for the enums in `file` that kopium cannot derive one
+/// for, removing each matched entry from `unused`.
+fn add_enum_defaults(file: &mut syn::File, defaults: &[(&'static str, &str)], unused: &mut BTreeSet<&'static str>) {
     for (name, default) in defaults {
-        if !kopium_rs.contains(&format!("pub enum {name} {{")) {
+        let defined = file
+            .items
+            .iter()
+            .any(|item| matches!(item, syn::Item::Enum(item) if item.ident == name));
+        if !defined {
             continue;
         }
-        write!(
-            out,
-            "\nimpl Default for {name} {{\n    \
-                 fn default() -> Self {{\n        \
-                     {name}::{default}\n    \
-                 }}\n\
-             }}\n"
-        )
-        .unwrap();
         unused.remove(name);
+        let name = syn::Ident::new(name, Span::call_site());
+        let default = syn::Ident::new(default, Span::call_site());
+        file.items.push(syn::parse_quote! {
+            impl Default for #name {
+                fn default() -> Self {
+                    #name::#default
+                }
+            }
+        });
     }
-    out
 }
 
 // -----------------------------------------------------------------------------
@@ -649,7 +741,7 @@ fn gen_crd_fixture(bundle: &str, crd: &FetchedCrd) -> String {
 
 /// Generates the `apis!` macro, which calls a callback macro once per channel
 /// with each resource's root type and every API version its CRD defines.
-fn gen_test_apis(channels: &[(&Channel, Vec<GeneratedResource>)]) -> String {
+fn gen_test_apis(channels: &[GeneratedChannel]) -> String {
     let mut out = format!(
         "{GENERATED_HEADER}\
          \n\
@@ -663,7 +755,7 @@ fn gen_test_apis(channels: &[(&Channel, Vec<GeneratedResource>)]) -> String {
          macro_rules! apis {{\n    \
              ($callback:ident) => {{\n"
     );
-    for (channel, resources) in channels {
+    for GeneratedChannel { channel, resources } in channels {
         let channel_name = channel.name;
         let cfg = if channel_name == EXPERIMENTAL.name {
             "#[cfg(feature = \"experimental\")] "
@@ -672,12 +764,18 @@ fn gen_test_apis(channels: &[(&Channel, Vec<GeneratedResource>)]) -> String {
         };
         writeln!(out, "        $callback!({cfg}{channel_name} {{").unwrap();
         for GeneratedResource {
-            name,
+            api,
             root_type,
             versions,
+            ..
         } in resources
         {
-            let versions = versions.join(", ");
+            let name = api.name;
+            let versions = versions
+                .iter()
+                .map(|module| module.api_version.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
             writeln!(out, "            {name}: {root_type} [{versions}]").unwrap();
         }
         out.push_str("        });\n");
