@@ -19,6 +19,7 @@ mod prelude {
 }
 
 use self::prelude::*;
+use crate::apis::experimental::common::{ParametersReference, SupportedFeature};
 
 /// Spec defines the desired state of XMesh.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -62,38 +63,12 @@ pub struct XMeshSpec {
     ///
     /// Support: Implementation-specific
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parametersRef")]
-    pub parameters_ref: Option<XMeshParametersRef>,
+    pub parameters_ref: Option<ParametersReference>,
 }
 
-/// ParametersRef is an optional reference to a resource that contains
-/// implementation-specific configuration for this Mesh. If no
-/// implementation-specific parameters are needed, this field MUST be
-/// omitted.
-///
-/// ParametersRef can reference a standard Kubernetes resource, i.e.
-/// ConfigMap, or an implementation-specific custom resource. The resource
-/// can be cluster-scoped or namespace-scoped.
-///
-/// If the referent cannot be found, refers to an unsupported kind, or when
-/// the data within that resource is malformed, the Mesh MUST be rejected
-/// with the "Accepted" status condition set to "False" and an
-/// "InvalidParameters" reason.
-///
-/// Support: Implementation-specific
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct XMeshParametersRef {
-    /// Group is the group of the referent.
-    pub group: String,
-    /// Kind is kind of the referent.
-    pub kind: String,
-    /// Name is the name of the referent.
-    pub name: String,
-    /// Namespace is the namespace of the referent.
-    /// This field is required when referring to a Namespace-scoped resource and
-    /// MUST be unset when referring to a Cluster-scoped resource.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::ParametersReference`")]
+pub type XMeshParametersRef = crate::apis::experimental::common::ParametersReference;
 
 /// Status defines the current state of XMesh.
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -108,12 +83,9 @@ pub struct XMeshStatus {
     /// SupportedFeatures is the set of features the Mesh support.
     /// It MUST be sorted in ascending alphabetical order by the Name key.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedFeatures")]
-    pub supported_features: Option<Vec<XMeshStatusSupportedFeatures>>,
+    pub supported_features: Option<Vec<SupportedFeature>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct XMeshStatusSupportedFeatures {
-    /// FeatureName is used to describe distinct features that are covered by
-    /// conformance tests.
-    pub name: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::SupportedFeature`")]
+pub type XMeshStatusSupportedFeatures = crate::apis::experimental::common::SupportedFeature;

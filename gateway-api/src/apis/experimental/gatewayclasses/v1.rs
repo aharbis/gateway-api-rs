@@ -19,6 +19,7 @@ mod prelude {
 }
 
 use self::prelude::*;
+use crate::apis::experimental::common::{ParametersReference, SupportedFeature};
 
 /// Spec defines the desired state of GatewayClass.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -64,41 +65,12 @@ pub struct GatewayClassSpec {
     ///
     /// Support: Implementation-specific
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parametersRef")]
-    pub parameters_ref: Option<GatewayClassParametersRef>,
+    pub parameters_ref: Option<ParametersReference>,
 }
 
-/// ParametersRef is a reference to a resource that contains the configuration
-/// parameters corresponding to the GatewayClass. This is optional if the
-/// controller does not require any additional configuration.
-///
-/// ParametersRef can reference a standard Kubernetes resource, i.e. ConfigMap,
-/// or an implementation-specific custom resource. The resource can be
-/// cluster-scoped or namespace-scoped.
-///
-/// If the referent cannot be found, refers to an unsupported kind, or when
-/// the data within that resource is malformed, the GatewayClass SHOULD be
-/// rejected with the "Accepted" status condition set to "False" and an
-/// "InvalidParameters" reason.
-///
-/// A Gateway for this GatewayClass may provide its own `parametersRef`. When both are specified,
-/// the merging behavior is implementation specific.
-/// It is generally recommended that GatewayClass provides defaults that can be overridden by a Gateway.
-///
-/// Support: Implementation-specific
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayClassParametersRef {
-    /// Group is the group of the referent.
-    pub group: String,
-    /// Kind is kind of the referent.
-    pub kind: String,
-    /// Name is the name of the referent.
-    pub name: String,
-    /// Namespace is the namespace of the referent.
-    /// This field is required when referring to a Namespace-scoped resource and
-    /// MUST be unset when referring to a Cluster-scoped resource.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::ParametersReference`")]
+pub type GatewayClassParametersRef = crate::apis::experimental::common::ParametersReference;
 
 /// Status defines the current state of GatewayClass.
 ///
@@ -116,12 +88,9 @@ pub struct GatewayClassStatus {
     /// SupportedFeatures is the set of features the GatewayClass support.
     /// It MUST be sorted in ascending alphabetical order by the Name key.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedFeatures")]
-    pub supported_features: Option<Vec<GatewayClassStatusSupportedFeatures>>,
+    pub supported_features: Option<Vec<SupportedFeature>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayClassStatusSupportedFeatures {
-    /// FeatureName is used to describe distinct features that are covered by
-    /// conformance tests.
-    pub name: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::SupportedFeature`")]
+pub type GatewayClassStatusSupportedFeatures = crate::apis::experimental::common::SupportedFeature;

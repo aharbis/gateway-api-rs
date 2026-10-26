@@ -21,6 +21,7 @@ mod prelude {
 }
 
 use self::prelude::*;
+use crate::apis::experimental::common::{AllowedRoutes, ListenerTlsConfig, ParentGatewayReference, RouteGroupKind};
 
 /// Spec defines the desired state of ListenerSet.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -64,7 +65,7 @@ pub struct ListenerSetSpec {
     pub listeners: Vec<ListenerSetListeners>,
     /// ParentRef references the Gateway that the listeners are attached to.
     #[serde(rename = "parentRef")]
-    pub parent_ref: ListenerSetParentRef,
+    pub parent_ref: ParentGatewayReference,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -92,7 +93,7 @@ pub struct ListenerSetListeners {
     /// example, even if a filter specified by a Route rule is invalid, the rest
     /// of the rules within that Route should still be supported.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowedRoutes")]
-    pub allowed_routes: Option<ListenerSetListenersAllowedRoutes>,
+    pub allowed_routes: Option<AllowedRoutes>,
     /// Hostname specifies the virtual hostname to match for protocol types that
     /// define this concept. When unspecified, all hostnames are matched. This
     /// field is ignored for protocols that don't require hostname based
@@ -141,266 +142,50 @@ pub struct ListenerSetListeners {
     /// The GatewayClass MUST use the longest matching SNI out of all
     /// available certificates for any TLS handshake.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tls: Option<ListenerSetListenersTls>,
+    pub tls: Option<ListenerTlsConfig>,
 }
 
-/// AllowedRoutes defines the types of routes that MAY be attached to a
-/// Listener and the trusted namespaces where those Route resources MAY be
-/// present.
-///
-/// Although a client request may match multiple route rules, only one rule
-/// may ultimately receive the request. Matching precedence MUST be
-/// determined in order of the following criteria:
-///
-/// * The most specific match as defined by the Route type.
-/// * The oldest Route based on creation timestamp. For example, a Route with
-///   a creation timestamp of "2020-09-08 01:02:03" is given precedence over
-///   a Route with a creation timestamp of "2020-09-08 01:02:04".
-/// * If everything else is equivalent, the Route appearing first in
-///   alphabetical order (namespace/name) should be given precedence. For
-///   example, foo/bar is given precedence over foo/baz.
-///
-/// All valid rules within a Route attached to this Listener should be
-/// implemented. Invalid Route rules can be ignored (sometimes that will mean
-/// the full Route). If a Route rule transitions from valid to invalid,
-/// support for that Route rule should be dropped to ensure consistency. For
-/// example, even if a filter specified by a Route rule is invalid, the rest
-/// of the rules within that Route should still be supported.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersAllowedRoutes {
-    /// Kinds specifies the groups and kinds of Routes that are allowed to bind
-    /// to this Gateway Listener. When unspecified or empty, the kinds of Routes
-    /// selected are determined using the Listener protocol.
-    ///
-    /// A RouteGroupKind MUST correspond to kinds of Routes that are compatible
-    /// with the application protocol specified in the Listener's Protocol field.
-    /// If an implementation does not support or recognize this resource type, it
-    /// MUST set the "ResolvedRefs" condition to False for this Listener with the
-    /// "InvalidRouteKinds" reason.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kinds: Option<Vec<ListenerSetListenersAllowedRoutesKinds>>,
-    /// Namespaces indicates namespaces from which Routes may be attached to this
-    /// Listener. This is restricted to the namespace of this Gateway by default.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespaces: Option<ListenerSetListenersAllowedRoutesNamespaces>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::AllowedRoutes`")]
+pub type ListenerSetListenersAllowedRoutes = crate::apis::experimental::common::AllowedRoutes;
 
-/// RouteGroupKind indicates the group and kind of a Route resource.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersAllowedRoutesKinds {
-    /// Group is the group of the Route.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is the kind of the Route.
-    pub kind: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::RouteGroupKind`")]
+pub type ListenerSetListenersAllowedRoutesKinds = crate::apis::experimental::common::RouteGroupKind;
 
-/// Namespaces indicates namespaces from which Routes may be attached to this
-/// Listener. This is restricted to the namespace of this Gateway by default.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersAllowedRoutesNamespaces {
-    /// From indicates where Routes will be selected for this Gateway. Possible
-    /// values are:
-    ///
-    /// * All: Routes in all namespaces may be used by this Gateway.
-    /// * Selector: Routes in namespaces selected by the selector may be used by
-    ///   this Gateway.
-    /// * Same: Only Routes in the same namespace may be used by this Gateway.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub from: Option<ListenerSetListenersAllowedRoutesNamespacesFrom>,
-    /// Selector must be specified when From is set to "Selector". In that case,
-    /// only Routes in Namespaces matching this Selector will be selected by this
-    /// Gateway. This field is ignored for other values of "From".
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub selector: Option<ListenerSetListenersAllowedRoutesNamespacesSelector>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespaces`")]
+pub type ListenerSetListenersAllowedRoutesNamespaces = crate::apis::experimental::common::RouteNamespaces;
 
-/// Namespaces indicates namespaces from which Routes may be attached to this
-/// Listener. This is restricted to the namespace of this Gateway by default.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum ListenerSetListenersAllowedRoutesNamespacesFrom {
-    All,
-    Selector,
-    Same,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::FromNamespaces`")]
+pub type ListenerSetListenersAllowedRoutesNamespacesFrom = crate::apis::experimental::common::FromNamespaces;
 
-/// Selector must be specified when From is set to "Selector". In that case,
-/// only Routes in Namespaces matching this Selector will be selected by this
-/// Gateway. This field is ignored for other values of "From".
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersAllowedRoutesNamespacesSelector {
-    /// matchExpressions is a list of label selector requirements. The requirements are ANDed.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "matchExpressions")]
-    pub match_expressions: Option<Vec<ListenerSetListenersAllowedRoutesNamespacesSelectorMatchExpressions>>,
-    /// matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
-    /// map is equivalent to an element of matchExpressions, whose key field is "key", the
-    /// operator is "In", and the values array contains only "value". The requirements are ANDed.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "matchLabels")]
-    pub match_labels: Option<BTreeMap<String, String>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespacesSelector`")]
+pub type ListenerSetListenersAllowedRoutesNamespacesSelector =
+    crate::apis::experimental::common::RouteNamespacesSelector;
 
-/// A label selector requirement is a selector that contains values, a key, and an operator that
-/// relates the key and values.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersAllowedRoutesNamespacesSelectorMatchExpressions {
-    /// key is the label key that the selector applies to.
-    pub key: String,
-    /// operator represents a key's relationship to a set of values.
-    /// Valid operators are In, NotIn, Exists and DoesNotExist.
-    pub operator: String,
-    /// values is an array of string values. If the operator is In or NotIn,
-    /// the values array must be non-empty. If the operator is Exists or DoesNotExist,
-    /// the values array must be empty. This array is replaced during a strategic
-    /// merge patch.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub values: Option<Vec<String>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::RouteNamespacesSelectorMatchExpressions`")]
+pub type ListenerSetListenersAllowedRoutesNamespacesSelectorMatchExpressions =
+    crate::apis::experimental::common::RouteNamespacesSelectorMatchExpressions;
 
-/// TLS is the TLS configuration for the Listener. This field is required if
-/// the Protocol field is "HTTPS" or "TLS". It is invalid to set this field
-/// if the Protocol field is "HTTP", "TCP", or "UDP".
-///
-/// The association of SNIs to Certificate defined in ListenerTLSConfig is
-/// defined based on the Hostname field for this listener.
-///
-/// The GatewayClass MUST use the longest matching SNI out of all
-/// available certificates for any TLS handshake.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersTls {
-    /// CertificateRefs contains a series of references to Kubernetes objects that
-    /// contains TLS certificates and private keys. These certificates are used to
-    /// establish a TLS handshake for requests that match the hostname of the
-    /// associated listener.
-    ///
-    /// A single CertificateRef to a Kubernetes Secret has "Core" support.
-    /// Implementations MAY choose to support attaching multiple certificates to
-    /// a Listener, but this behavior is implementation-specific.
-    ///
-    /// References to a resource in different namespace are invalid UNLESS there
-    /// is a ReferenceGrant in the target namespace that allows the certificate
-    /// to be attached. If a ReferenceGrant does not allow this reference, the
-    /// "ResolvedRefs" condition MUST be set to False for this listener with the
-    /// "RefNotPermitted" reason.
-    ///
-    /// This field is required to have at least one element when the mode is set
-    /// to "Terminate" (default) and is optional otherwise.
-    ///
-    /// CertificateRefs can reference to standard Kubernetes resources, i.e.
-    /// Secret, or implementation-specific custom resources.
-    ///
-    /// Support: Core - A single reference to a Kubernetes Secret of type kubernetes.io/tls
-    ///
-    /// Support: Implementation-specific (More than one reference or other resource types)
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "certificateRefs")]
-    pub certificate_refs: Option<Vec<ListenerSetListenersTlsCertificateRefs>>,
-    /// Mode defines the TLS behavior for the TLS session initiated by the client.
-    /// There are two possible modes:
-    ///
-    /// - Terminate: The TLS session between the downstream client and the
-    ///   Gateway is terminated at the Gateway. This mode requires certificates
-    ///   to be specified in some way, such as populating the certificateRefs
-    ///   field.
-    /// - Passthrough: The TLS session is NOT terminated by the Gateway. This
-    ///   implies that the Gateway can't decipher the TLS stream except for
-    ///   the ClientHello message of the TLS protocol. The certificateRefs field
-    ///   is ignored in this mode.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<ListenerSetListenersTlsMode>,
-    /// Options are a list of key/value pairs to enable extended TLS
-    /// configuration for each implementation. For example, configuring the
-    /// minimum TLS version or supported cipher suites.
-    ///
-    /// A set of common keys MAY be defined by the API in the future. To avoid
-    /// any ambiguity, implementation-specific definitions MUST use
-    /// domain-prefixed names, such as `example.com/my-custom-option`.
-    /// Un-prefixed names are reserved for key names defined by Gateway API.
-    ///
-    /// Support: Implementation-specific
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub options: Option<BTreeMap<String, String>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::ListenerTlsConfig`")]
+pub type ListenerSetListenersTls = crate::apis::experimental::common::ListenerTlsConfig;
 
-/// SecretObjectReference identifies an API object including its namespace,
-/// defaulting to Secret.
-///
-/// The API object must be valid in the cluster; the Group and Kind must
-/// be registered in the cluster for this reference to be valid.
-///
-/// References to objects with invalid Group and Kind are not valid, and must
-/// be rejected by the implementation, with appropriate Conditions set
-/// on the containing object.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetListenersTlsCertificateRefs {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
-    /// When unspecified or empty string, core API group is inferred.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is kind of the referent. For example "Secret".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Name is the name of the referent.
-    pub name: String,
-    /// Namespace is the namespace of the referenced object. When unspecified, the local
-    /// namespace is inferred.
-    ///
-    /// Note that when a namespace different than the local namespace is specified,
-    /// a ReferenceGrant object is required in the referent namespace to allow that
-    /// namespace's owner to accept the reference. See the ReferenceGrant
-    /// documentation for details.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::SecretObjectReference`")]
+pub type ListenerSetListenersTlsCertificateRefs = crate::apis::experimental::common::SecretObjectReference;
 
-/// TLS is the TLS configuration for the Listener. This field is required if
-/// the Protocol field is "HTTPS" or "TLS". It is invalid to set this field
-/// if the Protocol field is "HTTP", "TCP", or "UDP".
-///
-/// The association of SNIs to Certificate defined in ListenerTLSConfig is
-/// defined based on the Hostname field for this listener.
-///
-/// The GatewayClass MUST use the longest matching SNI out of all
-/// available certificates for any TLS handshake.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum ListenerSetListenersTlsMode {
-    Terminate,
-    Passthrough,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::TlsModeType`")]
+pub type ListenerSetListenersTlsMode = crate::apis::experimental::common::TlsModeType;
 
-/// ParentRef references the Gateway that the listeners are attached to.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetParentRef {
-    /// Group is the group of the referent.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is kind of the referent. For example "Gateway".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Name is the name of the referent.
-    pub name: String,
-    /// Namespace is the namespace of the referent.  If not present,
-    /// the namespace of the referent is assumed to be the same as
-    /// the namespace of the referring object.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::ParentGatewayReference`")]
+pub type ListenerSetParentRef = crate::apis::experimental::common::ParentGatewayReference;
 
 /// Status defines the current state of ListenerSet.
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -462,15 +247,9 @@ pub struct ListenerSetStatusListeners {
     /// and invalid Route kinds are specified, the implementation MUST
     /// reference the valid Route kinds that have been specified.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedKinds")]
-    pub supported_kinds: Option<Vec<ListenerSetStatusListenersSupportedKinds>>,
+    pub supported_kinds: Option<Vec<RouteGroupKind>>,
 }
 
-/// RouteGroupKind indicates the group and kind of a Route resource.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct ListenerSetStatusListenersSupportedKinds {
-    /// Group is the group of the Route.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is the kind of the Route.
-    pub kind: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::RouteGroupKind`")]
+pub type ListenerSetStatusListenersSupportedKinds = crate::apis::experimental::common::RouteGroupKind;

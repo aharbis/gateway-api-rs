@@ -1,14 +1,17 @@
 use kube::Api;
 
-use self::api::{BackendTlsPolicy, BackendTlsPolicySpec, BackendTlsPolicyTargetRefs, BackendTlsPolicyValidation};
-use crate::common;
+use self::{
+    api::{BackendTlsPolicy, BackendTlsPolicySpec, BackendTlsPolicyValidation},
+    common::LocalPolicyTargetReferenceWithSectionName,
+};
+use crate::harness;
 
 #[ignore]
 #[tokio::test]
 async fn crud() {
     let policy = BackendTlsPolicy {
         spec: BackendTlsPolicySpec {
-            target_refs: vec![BackendTlsPolicyTargetRefs {
+            target_refs: vec![LocalPolicyTargetReferenceWithSectionName {
                 group: "".into(),
                 kind: "Service".into(),
                 name: "test-service".into(),
@@ -24,5 +27,5 @@ async fn crud() {
         ..Default::default()
     };
 
-    common::crud(Api::default_namespaced(common::client().await), policy).await;
+    harness::crud(Api::default_namespaced(harness::client().await), policy).await;
 }

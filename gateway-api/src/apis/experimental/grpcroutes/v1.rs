@@ -19,6 +19,10 @@ mod prelude {
 }
 
 use self::prelude::*;
+use crate::apis::experimental::common::{
+    GatewayDefaultScope, HttpHeaderFilter, HttpRequestMirrorFilter, LocalObjectReference, ParentReference,
+    RouteParentStatus, SessionPersistence,
+};
 
 /// Spec defines the desired state of GRPCRoute.
 #[derive(CustomResource, Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -148,7 +152,7 @@ pub struct GrpcRouteSpec {
     /// the intended destination of the connections are a Service targeted as a
     /// ParentRef of the Route.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
-    pub parent_refs: Option<Vec<GrpcRouteParentRefs>>,
+    pub parent_refs: Option<Vec<ParentReference>>,
     /// Rules are a list of GRPC matchers, filters and actions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<Vec<GrpcRouteRules>>,
@@ -165,128 +169,12 @@ pub struct GrpcRouteSpec {
     /// example, a Route with specific security requirements should almost
     /// certainly not use a default Gateway.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "useDefaultGateways")]
-    pub use_default_gateways: Option<GrpcRouteUseDefaultGateways>,
+    pub use_default_gateways: Option<GatewayDefaultScope>,
 }
 
-/// ParentReference identifies an API object (usually a Gateway) that can be considered
-/// a parent of this resource (usually a route). There are two kinds of parent resources
-/// with "Core" support:
-///
-/// * Gateway (Gateway conformance profile)
-/// * Service (Mesh conformance profile, ClusterIP Services only)
-///
-/// This API may be extended in the future to support additional kinds of parent
-/// resources.
-///
-/// The API object must be valid in the cluster; the Group and Kind must
-/// be registered in the cluster for this reference to be valid.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteParentRefs {
-    /// Group is the group of the referent.
-    /// When unspecified, "gateway.networking.k8s.io" is inferred.
-    /// To set the core API group (such as for a "Service" kind referent),
-    /// Group must be explicitly set to "" (empty string).
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is kind of the referent.
-    ///
-    /// There are two kinds of parent resources with "Core" support:
-    ///
-    /// * Gateway (Gateway conformance profile)
-    /// * Service (Mesh conformance profile, ClusterIP Services only)
-    ///
-    /// Support for other resources is Implementation-Specific.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Name is the name of the referent.
-    ///
-    /// Support: Core
-    pub name: String,
-    /// Namespace is the namespace of the referent. When unspecified, this refers
-    /// to the local namespace of the Route.
-    ///
-    /// Note that there are specific rules for ParentRefs which cross namespace
-    /// boundaries. Cross-namespace references are only valid if they are explicitly
-    /// allowed by something in the namespace they are referring to. For example:
-    /// Gateway has the AllowedRoutes field, and ReferenceGrant provides a
-    /// generic way to enable any other kind of cross-namespace reference.
-    ///
-    ///
-    /// ParentRefs from a Route to a Service in the same namespace are "producer"
-    /// routes, which apply default routing rules to inbound connections from
-    /// any namespace to the Service.
-    ///
-    /// ParentRefs from a Route to a Service in a different namespace are
-    /// "consumer" routes, and these routing rules are only applied to outbound
-    /// connections originating from the same namespace as the Route, for which
-    /// the intended destination of the connections are a Service targeted as a
-    /// ParentRef of the Route.
-    ///
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-    /// Port is the network port this Route targets. It can be interpreted
-    /// differently based on the type of parent resource.
-    ///
-    /// When the parent resource is a Gateway, this targets all listeners
-    /// listening on the specified port that also support this kind of Route(and
-    /// select this Route). It's not recommended to set `Port` unless the
-    /// networking behaviors specified in a Route must apply to a specific port
-    /// as opposed to a listener(s) whose port(s) may be changed. When both Port
-    /// and SectionName are specified, the name and port of the selected listener
-    /// must match both specified values.
-    ///
-    ///
-    /// When the parent resource is a Service, this targets a specific port in the
-    /// Service spec. When both Port (experimental) and SectionName are specified,
-    /// the name and port of the selected port must match both specified values.
-    ///
-    ///
-    /// Implementations MAY choose to support other parent resources.
-    /// Implementations supporting other types of parent resources MUST clearly
-    /// document how/if Port is interpreted.
-    ///
-    /// For the purpose of status, an attachment is considered successful as
-    /// long as the parent resource accepts it partially. For example, Gateway
-    /// listeners can restrict which Routes can attach to them by Route kind,
-    /// namespace, or hostname. If 1 of 2 Gateway listeners accept attachment
-    /// from the referencing Route, the Route MUST be considered successfully
-    /// attached. If no Gateway listeners accept attachment from this Route,
-    /// the Route MUST be considered detached from the Gateway.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub port: Option<i32>,
-    /// SectionName is the name of a section within the target resource. In the
-    /// following resources, SectionName is interpreted as the following:
-    ///
-    /// * Gateway: Listener name. When both Port (experimental) and SectionName
-    /// are specified, the name and port of the selected listener must match
-    /// both specified values.
-    /// * Service: Port name. When both Port (experimental) and SectionName
-    /// are specified, the name and port of the selected listener must match
-    /// both specified values.
-    ///
-    /// Implementations MAY choose to support attaching Routes to other resources.
-    /// If that is the case, they MUST clearly document how SectionName is
-    /// interpreted.
-    ///
-    /// When unspecified (empty string), this will reference the entire resource.
-    /// For the purpose of status, an attachment is considered successful if at
-    /// least one section in the parent resource accepts it. For example, Gateway
-    /// listeners can restrict which Routes can attach to them by Route kind,
-    /// namespace, or hostname. If 1 of 2 Gateway listeners accept attachment from
-    /// the referencing Route, the Route MUST be considered successfully
-    /// attached. If no Gateway listeners accept attachment from this Route, the
-    /// Route MUST be considered detached from the Gateway.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "sectionName")]
-    pub section_name: Option<String>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::ParentReference`")]
+pub type GrpcRouteParentRefs = crate::apis::experimental::common::ParentReference;
 
 /// GRPCRouteRule defines the semantics for matching a gRPC request based on
 /// conditions (matches), processing it (filters), and forwarding the request to
@@ -410,7 +298,7 @@ pub struct GrpcRouteRules {
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "sessionPersistence")]
-    pub session_persistence: Option<GrpcRouteRulesSessionPersistence>,
+    pub session_persistence: Option<SessionPersistence>,
 }
 
 /// GRPCBackendRef defines how a GRPCRoute forwards a gRPC request.
@@ -517,13 +405,13 @@ pub struct GrpcRouteRulesBackendRefsFilters {
     ///
     /// This filter can be used multiple times within the same rule.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "extensionRef")]
-    pub extension_ref: Option<GrpcRouteRulesBackendRefsFiltersExtensionRef>,
+    pub extension_ref: Option<LocalObjectReference>,
     /// RequestHeaderModifier defines a schema for a filter that modifies request
     /// headers.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestHeaderModifier")]
-    pub request_header_modifier: Option<GrpcRouteRulesBackendRefsFiltersRequestHeaderModifier>,
+    pub request_header_modifier: Option<HttpHeaderFilter>,
     /// RequestMirror defines a schema for a filter that mirrors requests.
     /// Requests are sent to the specified destination, but responses from
     /// that destination are ignored.
@@ -534,13 +422,13 @@ pub struct GrpcRouteRulesBackendRefsFilters {
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestMirror")]
-    pub request_mirror: Option<GrpcRouteRulesBackendRefsFiltersRequestMirror>,
+    pub request_mirror: Option<HttpRequestMirrorFilter>,
     /// ResponseHeaderModifier defines a schema for a filter that modifies response
     /// headers.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "responseHeaderModifier")]
-    pub response_header_modifier: Option<GrpcRouteRulesBackendRefsFiltersResponseHeaderModifier>,
+    pub response_header_modifier: Option<HttpHeaderFilter>,
     /// Type identifies the type of filter to apply. As with other API fields,
     /// types are classified into three conformance levels:
     ///
@@ -569,356 +457,46 @@ pub struct GrpcRouteRulesBackendRefsFilters {
     pub r#type: GrpcRouteRulesBackendRefsFiltersType,
 }
 
-/// ExtensionRef is an optional, implementation-specific extension to the
-/// "filter" behavior.  For example, resource "myroutefilter" in group
-/// "networking.example.net"). ExtensionRef MUST NOT be used for core and
-/// extended filters.
-///
-/// Support: Implementation-specific
-///
-/// This filter can be used multiple times within the same rule.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersExtensionRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
-    /// When unspecified or empty string, core API group is inferred.
-    pub group: String,
-    /// Kind is kind of the referent. For example "HTTPRoute" or "Service".
-    pub kind: String,
-    /// Name is the name of the referent.
-    pub name: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::LocalObjectReference`")]
+pub type GrpcRouteRulesBackendRefsFiltersExtensionRef = crate::apis::experimental::common::LocalObjectReference;
 
-/// RequestHeaderModifier defines a schema for a filter that modifies request
-/// headers.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersRequestHeaderModifier {
-    /// Add adds the given header(s) (name, value) to the request
-    /// before the action. It appends to any existing values associated
-    /// with the header name.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   add:
-    ///   - name: "my-header"
-    ///     value: "bar,baz"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo,bar,baz
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub add: Option<Vec<GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierAdd>>,
-    /// Remove the given header(s) from the HTTP request before the action. The
-    /// value of Remove is a list of HTTP header names. Note that the header
-    /// names are case-insensitive (see
-    /// <https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).>
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header1: foo
-    ///   my-header2: bar
-    ///   my-header3: baz
-    ///
-    /// Config:
-    ///   remove: ["my-header1", "my-header3"]
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header2: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remove: Option<Vec<String>>,
-    /// Set overwrites the request with the given header (name, value)
-    /// before the action.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   set:
-    ///   - name: "my-header"
-    ///     value: "bar"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub set: Option<Vec<GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierSet>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeaderFilter`")]
+pub type GrpcRouteRulesBackendRefsFiltersRequestHeaderModifier = crate::apis::experimental::common::HttpHeaderFilter;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierAdd {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierAdd = crate::apis::experimental::common::HttpHeader;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierSet {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesBackendRefsFiltersRequestHeaderModifierSet = crate::apis::experimental::common::HttpHeader;
 
-/// RequestMirror defines a schema for a filter that mirrors requests.
-/// Requests are sent to the specified destination, but responses from
-/// that destination are ignored.
-///
-/// This filter can be used multiple times within the same rule. Note that
-/// not all implementations will be able to support mirroring to multiple
-/// backends.
-///
-/// Support: Extended
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersRequestMirror {
-    /// BackendRef references a resource where mirrored requests are sent.
-    ///
-    /// Mirrored requests must be sent only to a single destination endpoint
-    /// within this BackendRef, irrespective of how many endpoints are present
-    /// within this BackendRef.
-    ///
-    /// If the referent cannot be found, this BackendRef is invalid and must be
-    /// dropped from the Gateway. The controller must ensure the "ResolvedRefs"
-    /// condition on the Route status is set to `status: False` and not configure
-    /// this backend in the underlying implementation.
-    ///
-    /// If there is a cross-namespace reference to an *existing* object
-    /// that is not allowed by a ReferenceGrant, the controller must ensure the
-    /// "ResolvedRefs"  condition on the Route is set to `status: False`,
-    /// with the "RefNotPermitted" reason and not configure this backend in the
-    /// underlying implementation.
-    ///
-    /// In either error case, the Message of the `ResolvedRefs` Condition
-    /// should be used to provide more detail about the problem.
-    ///
-    /// Support: Extended for Kubernetes Service
-    ///
-    /// Support: Implementation-specific for any other resource
-    #[serde(rename = "backendRef")]
-    pub backend_ref: GrpcRouteRulesBackendRefsFiltersRequestMirrorBackendRef,
-    /// Fraction represents the fraction of requests that should be
-    /// mirrored to BackendRef.
-    ///
-    /// Only one of Fraction or Percent may be specified. If neither field
-    /// is specified, 100% of requests will be mirrored.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fraction: Option<GrpcRouteRulesBackendRefsFiltersRequestMirrorFraction>,
-    /// Percent represents the percentage of requests that should be
-    /// mirrored to BackendRef. Its minimum value is 0 (indicating 0% of
-    /// requests) and its maximum value is 100 (indicating 100% of requests).
-    ///
-    /// Only one of Fraction or Percent may be specified. If neither field
-    /// is specified, 100% of requests will be mirrored.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub percent: Option<i32>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpRequestMirrorFilter`")]
+pub type GrpcRouteRulesBackendRefsFiltersRequestMirror = crate::apis::experimental::common::HttpRequestMirrorFilter;
 
-/// BackendRef references a resource where mirrored requests are sent.
-///
-/// Mirrored requests must be sent only to a single destination endpoint
-/// within this BackendRef, irrespective of how many endpoints are present
-/// within this BackendRef.
-///
-/// If the referent cannot be found, this BackendRef is invalid and must be
-/// dropped from the Gateway. The controller must ensure the "ResolvedRefs"
-/// condition on the Route status is set to `status: False` and not configure
-/// this backend in the underlying implementation.
-///
-/// If there is a cross-namespace reference to an *existing* object
-/// that is not allowed by a ReferenceGrant, the controller must ensure the
-/// "ResolvedRefs"  condition on the Route is set to `status: False`,
-/// with the "RefNotPermitted" reason and not configure this backend in the
-/// underlying implementation.
-///
-/// In either error case, the Message of the `ResolvedRefs` Condition
-/// should be used to provide more detail about the problem.
-///
-/// Support: Extended for Kubernetes Service
-///
-/// Support: Implementation-specific for any other resource
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersRequestMirrorBackendRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
-    /// When unspecified or empty string, core API group is inferred.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is the Kubernetes resource kind of the referent. For example
-    /// "Service".
-    ///
-    /// Defaults to "Service" when not specified.
-    ///
-    /// ExternalName services can refer to CNAME DNS records that may live
-    /// outside of the cluster and as such are difficult to reason about in
-    /// terms of conformance. They also may not be safe to forward to (see
-    /// CVE-2021-25740 for more information). Implementations SHOULD NOT
-    /// support ExternalName Services.
-    ///
-    /// Support: Core (Services with a type other than ExternalName)
-    ///
-    /// Support: Implementation-specific (Services with type ExternalName)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Name is the name of the referent.
-    pub name: String,
-    /// Namespace is the namespace of the backend. When unspecified, the local
-    /// namespace is inferred.
-    ///
-    /// Note that when a namespace different than the local namespace is specified,
-    /// a ReferenceGrant object is required in the referent namespace to allow that
-    /// namespace's owner to accept the reference. See the ReferenceGrant
-    /// documentation for details.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-    /// Port specifies the destination port number to use for this resource.
-    /// Port is required when the referent is a Kubernetes Service. In this
-    /// case, the port number is the service port number, not the target port.
-    /// For other resources, destination port might be derived from the referent
-    /// resource or this field.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub port: Option<i32>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::BackendObjectReference`")]
+pub type GrpcRouteRulesBackendRefsFiltersRequestMirrorBackendRef =
+    crate::apis::experimental::common::BackendObjectReference;
 
-/// Fraction represents the fraction of requests that should be
-/// mirrored to BackendRef.
-///
-/// Only one of Fraction or Percent may be specified. If neither field
-/// is specified, 100% of requests will be mirrored.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersRequestMirrorFraction {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub denominator: Option<i32>,
-    pub numerator: i32,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::Fraction`")]
+pub type GrpcRouteRulesBackendRefsFiltersRequestMirrorFraction = crate::apis::experimental::common::Fraction;
 
-/// ResponseHeaderModifier defines a schema for a filter that modifies response
-/// headers.
-///
-/// Support: Extended
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersResponseHeaderModifier {
-    /// Add adds the given header(s) (name, value) to the request
-    /// before the action. It appends to any existing values associated
-    /// with the header name.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   add:
-    ///   - name: "my-header"
-    ///     value: "bar,baz"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo,bar,baz
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub add: Option<Vec<GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierAdd>>,
-    /// Remove the given header(s) from the HTTP request before the action. The
-    /// value of Remove is a list of HTTP header names. Note that the header
-    /// names are case-insensitive (see
-    /// <https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).>
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header1: foo
-    ///   my-header2: bar
-    ///   my-header3: baz
-    ///
-    /// Config:
-    ///   remove: ["my-header1", "my-header3"]
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header2: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remove: Option<Vec<String>>,
-    /// Set overwrites the request with the given header (name, value)
-    /// before the action.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   set:
-    ///   - name: "my-header"
-    ///     value: "bar"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub set: Option<Vec<GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierSet>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeaderFilter`")]
+pub type GrpcRouteRulesBackendRefsFiltersResponseHeaderModifier = crate::apis::experimental::common::HttpHeaderFilter;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierAdd {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierAdd = crate::apis::experimental::common::HttpHeader;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierSet {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierSet = crate::apis::experimental::common::HttpHeader;
 
 /// GRPCRouteFilter defines processing steps that must be completed during the
 /// request or response lifecycle. GRPCRouteFilters are meant as an extension
@@ -932,6 +510,12 @@ pub enum GrpcRouteRulesBackendRefsFiltersType {
     RequestHeaderModifier,
     RequestMirror,
     ExtensionRef,
+}
+
+impl Default for GrpcRouteRulesBackendRefsFiltersType {
+    fn default() -> Self {
+        GrpcRouteRulesBackendRefsFiltersType::RequestHeaderModifier
+    }
 }
 
 /// GRPCRouteFilter defines processing steps that must be completed during the
@@ -951,13 +535,13 @@ pub struct GrpcRouteRulesFilters {
     ///
     /// This filter can be used multiple times within the same rule.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "extensionRef")]
-    pub extension_ref: Option<GrpcRouteRulesFiltersExtensionRef>,
+    pub extension_ref: Option<LocalObjectReference>,
     /// RequestHeaderModifier defines a schema for a filter that modifies request
     /// headers.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestHeaderModifier")]
-    pub request_header_modifier: Option<GrpcRouteRulesFiltersRequestHeaderModifier>,
+    pub request_header_modifier: Option<HttpHeaderFilter>,
     /// RequestMirror defines a schema for a filter that mirrors requests.
     /// Requests are sent to the specified destination, but responses from
     /// that destination are ignored.
@@ -968,13 +552,13 @@ pub struct GrpcRouteRulesFilters {
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestMirror")]
-    pub request_mirror: Option<GrpcRouteRulesFiltersRequestMirror>,
+    pub request_mirror: Option<HttpRequestMirrorFilter>,
     /// ResponseHeaderModifier defines a schema for a filter that modifies response
     /// headers.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "responseHeaderModifier")]
-    pub response_header_modifier: Option<GrpcRouteRulesFiltersResponseHeaderModifier>,
+    pub response_header_modifier: Option<HttpHeaderFilter>,
     /// Type identifies the type of filter to apply. As with other API fields,
     /// types are classified into three conformance levels:
     ///
@@ -1003,356 +587,45 @@ pub struct GrpcRouteRulesFilters {
     pub r#type: GrpcRouteRulesFiltersType,
 }
 
-/// ExtensionRef is an optional, implementation-specific extension to the
-/// "filter" behavior.  For example, resource "myroutefilter" in group
-/// "networking.example.net"). ExtensionRef MUST NOT be used for core and
-/// extended filters.
-///
-/// Support: Implementation-specific
-///
-/// This filter can be used multiple times within the same rule.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersExtensionRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
-    /// When unspecified or empty string, core API group is inferred.
-    pub group: String,
-    /// Kind is kind of the referent. For example "HTTPRoute" or "Service".
-    pub kind: String,
-    /// Name is the name of the referent.
-    pub name: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::LocalObjectReference`")]
+pub type GrpcRouteRulesFiltersExtensionRef = crate::apis::experimental::common::LocalObjectReference;
 
-/// RequestHeaderModifier defines a schema for a filter that modifies request
-/// headers.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersRequestHeaderModifier {
-    /// Add adds the given header(s) (name, value) to the request
-    /// before the action. It appends to any existing values associated
-    /// with the header name.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   add:
-    ///   - name: "my-header"
-    ///     value: "bar,baz"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo,bar,baz
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub add: Option<Vec<GrpcRouteRulesFiltersRequestHeaderModifierAdd>>,
-    /// Remove the given header(s) from the HTTP request before the action. The
-    /// value of Remove is a list of HTTP header names. Note that the header
-    /// names are case-insensitive (see
-    /// <https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).>
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header1: foo
-    ///   my-header2: bar
-    ///   my-header3: baz
-    ///
-    /// Config:
-    ///   remove: ["my-header1", "my-header3"]
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header2: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remove: Option<Vec<String>>,
-    /// Set overwrites the request with the given header (name, value)
-    /// before the action.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   set:
-    ///   - name: "my-header"
-    ///     value: "bar"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub set: Option<Vec<GrpcRouteRulesFiltersRequestHeaderModifierSet>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeaderFilter`")]
+pub type GrpcRouteRulesFiltersRequestHeaderModifier = crate::apis::experimental::common::HttpHeaderFilter;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersRequestHeaderModifierAdd {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesFiltersRequestHeaderModifierAdd = crate::apis::experimental::common::HttpHeader;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersRequestHeaderModifierSet {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesFiltersRequestHeaderModifierSet = crate::apis::experimental::common::HttpHeader;
 
-/// RequestMirror defines a schema for a filter that mirrors requests.
-/// Requests are sent to the specified destination, but responses from
-/// that destination are ignored.
-///
-/// This filter can be used multiple times within the same rule. Note that
-/// not all implementations will be able to support mirroring to multiple
-/// backends.
-///
-/// Support: Extended
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersRequestMirror {
-    /// BackendRef references a resource where mirrored requests are sent.
-    ///
-    /// Mirrored requests must be sent only to a single destination endpoint
-    /// within this BackendRef, irrespective of how many endpoints are present
-    /// within this BackendRef.
-    ///
-    /// If the referent cannot be found, this BackendRef is invalid and must be
-    /// dropped from the Gateway. The controller must ensure the "ResolvedRefs"
-    /// condition on the Route status is set to `status: False` and not configure
-    /// this backend in the underlying implementation.
-    ///
-    /// If there is a cross-namespace reference to an *existing* object
-    /// that is not allowed by a ReferenceGrant, the controller must ensure the
-    /// "ResolvedRefs"  condition on the Route is set to `status: False`,
-    /// with the "RefNotPermitted" reason and not configure this backend in the
-    /// underlying implementation.
-    ///
-    /// In either error case, the Message of the `ResolvedRefs` Condition
-    /// should be used to provide more detail about the problem.
-    ///
-    /// Support: Extended for Kubernetes Service
-    ///
-    /// Support: Implementation-specific for any other resource
-    #[serde(rename = "backendRef")]
-    pub backend_ref: GrpcRouteRulesFiltersRequestMirrorBackendRef,
-    /// Fraction represents the fraction of requests that should be
-    /// mirrored to BackendRef.
-    ///
-    /// Only one of Fraction or Percent may be specified. If neither field
-    /// is specified, 100% of requests will be mirrored.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fraction: Option<GrpcRouteRulesFiltersRequestMirrorFraction>,
-    /// Percent represents the percentage of requests that should be
-    /// mirrored to BackendRef. Its minimum value is 0 (indicating 0% of
-    /// requests) and its maximum value is 100 (indicating 100% of requests).
-    ///
-    /// Only one of Fraction or Percent may be specified. If neither field
-    /// is specified, 100% of requests will be mirrored.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub percent: Option<i32>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpRequestMirrorFilter`")]
+pub type GrpcRouteRulesFiltersRequestMirror = crate::apis::experimental::common::HttpRequestMirrorFilter;
 
-/// BackendRef references a resource where mirrored requests are sent.
-///
-/// Mirrored requests must be sent only to a single destination endpoint
-/// within this BackendRef, irrespective of how many endpoints are present
-/// within this BackendRef.
-///
-/// If the referent cannot be found, this BackendRef is invalid and must be
-/// dropped from the Gateway. The controller must ensure the "ResolvedRefs"
-/// condition on the Route status is set to `status: False` and not configure
-/// this backend in the underlying implementation.
-///
-/// If there is a cross-namespace reference to an *existing* object
-/// that is not allowed by a ReferenceGrant, the controller must ensure the
-/// "ResolvedRefs"  condition on the Route is set to `status: False`,
-/// with the "RefNotPermitted" reason and not configure this backend in the
-/// underlying implementation.
-///
-/// In either error case, the Message of the `ResolvedRefs` Condition
-/// should be used to provide more detail about the problem.
-///
-/// Support: Extended for Kubernetes Service
-///
-/// Support: Implementation-specific for any other resource
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersRequestMirrorBackendRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
-    /// When unspecified or empty string, core API group is inferred.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is the Kubernetes resource kind of the referent. For example
-    /// "Service".
-    ///
-    /// Defaults to "Service" when not specified.
-    ///
-    /// ExternalName services can refer to CNAME DNS records that may live
-    /// outside of the cluster and as such are difficult to reason about in
-    /// terms of conformance. They also may not be safe to forward to (see
-    /// CVE-2021-25740 for more information). Implementations SHOULD NOT
-    /// support ExternalName Services.
-    ///
-    /// Support: Core (Services with a type other than ExternalName)
-    ///
-    /// Support: Implementation-specific (Services with type ExternalName)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Name is the name of the referent.
-    pub name: String,
-    /// Namespace is the namespace of the backend. When unspecified, the local
-    /// namespace is inferred.
-    ///
-    /// Note that when a namespace different than the local namespace is specified,
-    /// a ReferenceGrant object is required in the referent namespace to allow that
-    /// namespace's owner to accept the reference. See the ReferenceGrant
-    /// documentation for details.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-    /// Port specifies the destination port number to use for this resource.
-    /// Port is required when the referent is a Kubernetes Service. In this
-    /// case, the port number is the service port number, not the target port.
-    /// For other resources, destination port might be derived from the referent
-    /// resource or this field.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub port: Option<i32>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::BackendObjectReference`")]
+pub type GrpcRouteRulesFiltersRequestMirrorBackendRef = crate::apis::experimental::common::BackendObjectReference;
 
-/// Fraction represents the fraction of requests that should be
-/// mirrored to BackendRef.
-///
-/// Only one of Fraction or Percent may be specified. If neither field
-/// is specified, 100% of requests will be mirrored.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersRequestMirrorFraction {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub denominator: Option<i32>,
-    pub numerator: i32,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::Fraction`")]
+pub type GrpcRouteRulesFiltersRequestMirrorFraction = crate::apis::experimental::common::Fraction;
 
-/// ResponseHeaderModifier defines a schema for a filter that modifies response
-/// headers.
-///
-/// Support: Extended
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersResponseHeaderModifier {
-    /// Add adds the given header(s) (name, value) to the request
-    /// before the action. It appends to any existing values associated
-    /// with the header name.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   add:
-    ///   - name: "my-header"
-    ///     value: "bar,baz"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo,bar,baz
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub add: Option<Vec<GrpcRouteRulesFiltersResponseHeaderModifierAdd>>,
-    /// Remove the given header(s) from the HTTP request before the action. The
-    /// value of Remove is a list of HTTP header names. Note that the header
-    /// names are case-insensitive (see
-    /// <https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).>
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header1: foo
-    ///   my-header2: bar
-    ///   my-header3: baz
-    ///
-    /// Config:
-    ///   remove: ["my-header1", "my-header3"]
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header2: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remove: Option<Vec<String>>,
-    /// Set overwrites the request with the given header (name, value)
-    /// before the action.
-    ///
-    /// Input:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: foo
-    ///
-    /// Config:
-    ///   set:
-    ///   - name: "my-header"
-    ///     value: "bar"
-    ///
-    /// Output:
-    ///   GET /foo HTTP/1.1
-    ///   my-header: bar
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub set: Option<Vec<GrpcRouteRulesFiltersResponseHeaderModifierSet>>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeaderFilter`")]
+pub type GrpcRouteRulesFiltersResponseHeaderModifier = crate::apis::experimental::common::HttpHeaderFilter;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersResponseHeaderModifierAdd {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesFiltersResponseHeaderModifierAdd = crate::apis::experimental::common::HttpHeader;
 
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFiltersResponseHeaderModifierSet {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
-    /// case-insensitive. (See <https://tools.ietf.org/html/rfc7230#section-3.2).>
-    ///
-    /// If multiple entries specify equivalent header names, the first entry with
-    /// an equivalent name MUST be considered for a match. Subsequent entries
-    /// with an equivalent header name MUST be ignored. Due to the
-    /// case-insensitivity of header names, "foo" and "Foo" are considered
-    /// equivalent.
-    pub name: String,
-    /// Value is the value of HTTP Header to be matched.
-    ///
-    /// Must consist of printable US-ASCII characters, optionally separated
-    /// by single tabs or spaces. See: <https://tools.ietf.org/html/rfc7230#section-3.2>
-    pub value: String,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
+pub type GrpcRouteRulesFiltersResponseHeaderModifierSet = crate::apis::experimental::common::HttpHeader;
 
 /// GRPCRouteFilter defines processing steps that must be completed during the
 /// request or response lifecycle. GRPCRouteFilters are meant as an extension
@@ -1366,6 +639,12 @@ pub enum GrpcRouteRulesFiltersType {
     RequestHeaderModifier,
     RequestMirror,
     ExtensionRef,
+}
+
+impl Default for GrpcRouteRulesFiltersType {
+    fn default() -> Self {
+        GrpcRouteRulesFiltersType::RequestHeaderModifier
+    }
 }
 
 /// GRPCRouteMatch defines the predicate used to match requests to a given
@@ -1458,106 +737,26 @@ pub enum GrpcRouteRulesMatchesMethodType {
     RegularExpression,
 }
 
-/// SessionPersistence defines and configures session persistence
-/// for the route rule.
-///
-/// Support: Extended
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesSessionPersistence {
-    /// AbsoluteTimeout defines the absolute timeout of the persistent
-    /// session. Once the AbsoluteTimeout duration has elapsed, the
-    /// session becomes invalid.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "absoluteTimeout")]
-    pub absolute_timeout: Option<String>,
-    /// CookieConfig provides configuration settings that are specific
-    /// to cookie-based session persistence.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "cookieConfig")]
-    pub cookie_config: Option<GrpcRouteRulesSessionPersistenceCookieConfig>,
-    /// IdleTimeout defines the idle timeout of the persistent session.
-    /// Once the session has been idle for more than the specified
-    /// IdleTimeout duration, the session becomes invalid.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "idleTimeout")]
-    pub idle_timeout: Option<String>,
-    /// SessionName defines the name of the persistent session token
-    /// which may be reflected in the cookie or the header. Users
-    /// should avoid reusing session names to prevent unintended
-    /// consequences, such as rejection or unpredictable behavior.
-    ///
-    /// Support: Implementation-specific
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "sessionName")]
-    pub session_name: Option<String>,
-    /// Type defines the type of session persistence such as through
-    /// the use of a header or cookie. Defaults to cookie based session
-    /// persistence.
-    ///
-    /// Support: Core for "Cookie" type
-    ///
-    /// Support: Extended for "Header" type
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
-    pub r#type: Option<GrpcRouteRulesSessionPersistenceType>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::SessionPersistence`")]
+pub type GrpcRouteRulesSessionPersistence = crate::apis::experimental::common::SessionPersistence;
 
-/// CookieConfig provides configuration settings that are specific
-/// to cookie-based session persistence.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesSessionPersistenceCookieConfig {
-    /// LifetimeType specifies whether the cookie has a permanent or
-    /// session-based lifetime. A permanent cookie persists until its
-    /// specified expiry time, defined by the Expires or Max-Age cookie
-    /// attributes, while a session cookie is deleted when the current
-    /// session ends.
-    ///
-    /// When set to "Permanent", AbsoluteTimeout indicates the
-    /// cookie's lifetime via the Expires or Max-Age cookie attributes
-    /// and is required.
-    ///
-    /// When set to "Session", AbsoluteTimeout indicates the
-    /// absolute lifetime of the cookie tracked by the gateway and
-    /// is optional.
-    ///
-    /// Defaults to "Session".
-    ///
-    /// Support: Core for "Session" type
-    ///
-    /// Support: Extended for "Permanent" type
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "lifetimeType")]
-    pub lifetime_type: Option<GrpcRouteRulesSessionPersistenceCookieConfigLifetimeType>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::CookieConfig`")]
+pub type GrpcRouteRulesSessionPersistenceCookieConfig = crate::apis::experimental::common::CookieConfig;
 
-/// CookieConfig provides configuration settings that are specific
-/// to cookie-based session persistence.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GrpcRouteRulesSessionPersistenceCookieConfigLifetimeType {
-    Permanent,
-    Session,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::CookieLifetimeType`")]
+pub type GrpcRouteRulesSessionPersistenceCookieConfigLifetimeType =
+    crate::apis::experimental::common::CookieLifetimeType;
 
-/// SessionPersistence defines and configures session persistence
-/// for the route rule.
-///
-/// Support: Extended
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GrpcRouteRulesSessionPersistenceType {
-    Cookie,
-    Header,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::SessionPersistenceType`")]
+pub type GrpcRouteRulesSessionPersistenceType = crate::apis::experimental::common::SessionPersistenceType;
 
-/// Spec defines the desired state of GRPCRoute.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GrpcRouteUseDefaultGateways {
-    All,
-    None,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::GatewayDefaultScope`")]
+pub type GrpcRouteUseDefaultGateways = crate::apis::experimental::common::GatewayDefaultScope;
 
 /// Status defines the current state of GRPCRoute.
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
@@ -1576,172 +775,13 @@ pub struct GrpcRouteStatus {
     ///
     /// A maximum of 32 Gateways will be represented in this list. An empty list
     /// means the route has not been attached to any Gateway.
-    pub parents: Vec<GrpcRouteStatusParents>,
+    pub parents: Vec<RouteParentStatus>,
 }
 
-/// RouteParentStatus describes the status of a route with respect to an
-/// associated Parent.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteStatusParents {
-    /// Conditions describes the status of the route with respect to the Gateway.
-    /// Note that the route's availability is also subject to the Gateway's own
-    /// status conditions and listener status.
-    ///
-    /// If the Route's ParentRef specifies an existing Gateway that supports
-    /// Routes of this kind AND that Gateway's controller has sufficient access,
-    /// then that Gateway's controller MUST set the "Accepted" condition on the
-    /// Route, to indicate whether the route has been accepted or rejected by the
-    /// Gateway, and why.
-    ///
-    /// A Route MUST be considered "Accepted" if at least one of the Route's
-    /// rules is implemented by the Gateway.
-    ///
-    /// There are a number of cases where the "Accepted" condition may not be set
-    /// due to lack of controller visibility, that includes when:
-    ///
-    /// * The Route refers to a nonexistent parent.
-    /// * The Route is of a type that the controller does not support.
-    /// * The Route is in a namespace to which the controller does not have access.
-    pub conditions: Vec<Condition>,
-    /// ControllerName is a domain/path string that indicates the name of the
-    /// controller that wrote this status. This corresponds with the
-    /// controllerName field on GatewayClass.
-    ///
-    /// Example: "example.net/gateway-controller".
-    ///
-    /// The format of this field is DOMAIN "/" PATH, where DOMAIN and PATH are
-    /// valid Kubernetes names
-    /// (<https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names).>
-    ///
-    /// Controllers MUST populate this field when writing status. Controllers should ensure that
-    /// entries to status populated with their ControllerName are cleaned up when they are no
-    /// longer necessary.
-    #[serde(rename = "controllerName")]
-    pub controller_name: String,
-    /// ParentRef corresponds with a ParentRef in the spec that this
-    /// RouteParentStatus struct describes the status of.
-    #[serde(rename = "parentRef")]
-    pub parent_ref: GrpcRouteStatusParentsParentRef,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::RouteParentStatus`")]
+pub type GrpcRouteStatusParents = crate::apis::experimental::common::RouteParentStatus;
 
-/// ParentRef corresponds with a ParentRef in the spec that this
-/// RouteParentStatus struct describes the status of.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteStatusParentsParentRef {
-    /// Group is the group of the referent.
-    /// When unspecified, "gateway.networking.k8s.io" is inferred.
-    /// To set the core API group (such as for a "Service" kind referent),
-    /// Group must be explicitly set to "" (empty string).
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub group: Option<String>,
-    /// Kind is kind of the referent.
-    ///
-    /// There are two kinds of parent resources with "Core" support:
-    ///
-    /// * Gateway (Gateway conformance profile)
-    /// * Service (Mesh conformance profile, ClusterIP Services only)
-    ///
-    /// Support for other resources is Implementation-Specific.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
-    /// Name is the name of the referent.
-    ///
-    /// Support: Core
-    pub name: String,
-    /// Namespace is the namespace of the referent. When unspecified, this refers
-    /// to the local namespace of the Route.
-    ///
-    /// Note that there are specific rules for ParentRefs which cross namespace
-    /// boundaries. Cross-namespace references are only valid if they are explicitly
-    /// allowed by something in the namespace they are referring to. For example:
-    /// Gateway has the AllowedRoutes field, and ReferenceGrant provides a
-    /// generic way to enable any other kind of cross-namespace reference.
-    ///
-    ///
-    /// ParentRefs from a Route to a Service in the same namespace are "producer"
-    /// routes, which apply default routing rules to inbound connections from
-    /// any namespace to the Service.
-    ///
-    /// ParentRefs from a Route to a Service in a different namespace are
-    /// "consumer" routes, and these routing rules are only applied to outbound
-    /// connections originating from the same namespace as the Route, for which
-    /// the intended destination of the connections are a Service targeted as a
-    /// ParentRef of the Route.
-    ///
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-    /// Port is the network port this Route targets. It can be interpreted
-    /// differently based on the type of parent resource.
-    ///
-    /// When the parent resource is a Gateway, this targets all listeners
-    /// listening on the specified port that also support this kind of Route(and
-    /// select this Route). It's not recommended to set `Port` unless the
-    /// networking behaviors specified in a Route must apply to a specific port
-    /// as opposed to a listener(s) whose port(s) may be changed. When both Port
-    /// and SectionName are specified, the name and port of the selected listener
-    /// must match both specified values.
-    ///
-    ///
-    /// When the parent resource is a Service, this targets a specific port in the
-    /// Service spec. When both Port (experimental) and SectionName are specified,
-    /// the name and port of the selected port must match both specified values.
-    ///
-    ///
-    /// Implementations MAY choose to support other parent resources.
-    /// Implementations supporting other types of parent resources MUST clearly
-    /// document how/if Port is interpreted.
-    ///
-    /// For the purpose of status, an attachment is considered successful as
-    /// long as the parent resource accepts it partially. For example, Gateway
-    /// listeners can restrict which Routes can attach to them by Route kind,
-    /// namespace, or hostname. If 1 of 2 Gateway listeners accept attachment
-    /// from the referencing Route, the Route MUST be considered successfully
-    /// attached. If no Gateway listeners accept attachment from this Route,
-    /// the Route MUST be considered detached from the Gateway.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub port: Option<i32>,
-    /// SectionName is the name of a section within the target resource. In the
-    /// following resources, SectionName is interpreted as the following:
-    ///
-    /// * Gateway: Listener name. When both Port (experimental) and SectionName
-    /// are specified, the name and port of the selected listener must match
-    /// both specified values.
-    /// * Service: Port name. When both Port (experimental) and SectionName
-    /// are specified, the name and port of the selected listener must match
-    /// both specified values.
-    ///
-    /// Implementations MAY choose to support attaching Routes to other resources.
-    /// If that is the case, they MUST clearly document how SectionName is
-    /// interpreted.
-    ///
-    /// When unspecified (empty string), this will reference the entire resource.
-    /// For the purpose of status, an attachment is considered successful if at
-    /// least one section in the parent resource accepts it. For example, Gateway
-    /// listeners can restrict which Routes can attach to them by Route kind,
-    /// namespace, or hostname. If 1 of 2 Gateway listeners accept attachment from
-    /// the referencing Route, the Route MUST be considered successfully
-    /// attached. If no Gateway listeners accept attachment from this Route, the
-    /// Route MUST be considered detached from the Gateway.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "sectionName")]
-    pub section_name: Option<String>,
-}
-
-impl Default for GrpcRouteRulesBackendRefsFiltersType {
-    fn default() -> Self {
-        GrpcRouteRulesBackendRefsFiltersType::RequestHeaderModifier
-    }
-}
-
-impl Default for GrpcRouteRulesFiltersType {
-    fn default() -> Self {
-        GrpcRouteRulesFiltersType::RequestHeaderModifier
-    }
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::common::ParentReference`")]
+pub type GrpcRouteStatusParentsParentRef = crate::apis::experimental::common::ParentReference;

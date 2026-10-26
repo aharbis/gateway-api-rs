@@ -16,6 +16,11 @@ use anyhow::{Context, Result, bail};
 use proc_macro2::Span;
 use serde::Deserialize;
 
+use crate::shared_types::{DISTINCT, SHARED_TYPES};
+
+mod consolidate;
+mod shared_types;
+
 // -----------------------------------------------------------------------------
 // Configuration
 // -----------------------------------------------------------------------------
@@ -279,6 +284,8 @@ fn main() -> Result<()> {
 struct GeneratedChannel {
     channel: &'static Channel,
     resources: Vec<GeneratedResource>,
+    /// The `common` module's items, once consolidated.
+    common: Vec<syn::Item>,
 }
 
 /// One resource's generated bindings.
@@ -304,6 +311,24 @@ fn generate(version: &str) -> Result<()> {
     for channel in [&STANDARD, &EXPERIMENTAL] {
         channels.push(generate_channel(version, channel)?);
     }
+
+    let mut matched_names = BTreeSet::new();
+    let mut matched_distinct = BTreeSet::new();
+    for channel in &mut channels {
+        consolidate_channel(channel, &mut matched_names, &mut matched_distinct)?;
+    }
+    for entry in SHARED_TYPES {
+        if let Some(name) = entry.kopium.iter().find(|name| !matched_names.contains(*name)) {
+            bail!("shared type {go}: {name} matches no generated type", go = entry.go);
+        }
+    }
+    for (index, group) in DISTINCT.iter().enumerate() {
+        if !matched_distinct.contains(&index) {
+            let group = group.join(", ");
+            bail!("DISTINCT group no longer shares a shape in any channel: {group}");
+        }
+    }
+
     for channel in &channels {
         write_channel(version, channel)?;
     }
@@ -320,7 +345,6 @@ fn generate(version: &str) -> Result<()> {
 
 fn generate_channel(version: &str, channel: &'static Channel) -> Result<GeneratedChannel> {
     let channel_name = channel.name;
-    let mut unused_defaults: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
     let mut resources = Vec::new();
 
     // Fetch CRDs and run kopium once per API version
@@ -339,7 +363,7 @@ fn generate_channel(version: &str, channel: &'static Channel) -> Result<Generate
         let mut root_types = BTreeSet::new();
         let mut versions = Vec::new();
         for crd_version in &crd.spec.versions {
-            let module = generate_version(version, channel, api, &crd, crd_version, &mut unused_defaults)?;
+            let module = generate_version(version, channel, api, &crd, crd_version)?;
             let api_version = &module.api_version;
             let root_type =
                 root_type(&module.file).with_context(|| format!("{channel_name} {api_name} {api_version}"))?;
@@ -359,16 +383,75 @@ fn generate_channel(version: &str, channel: &'static Channel) -> Result<Generate
         });
     }
 
-    if let Some(name) = unused_defaults.first() {
+    Ok(GeneratedChannel {
+        channel,
+        resources,
+        common: Vec::new(),
+    })
+}
+
+/// Moves a channel's shared types into its `common` module, checks that no
+/// unclassified duplicates remain, then adds the enum defaults, which are
+/// keyed by the consolidated names.
+fn consolidate_channel(
+    generated: &mut GeneratedChannel,
+    matched_names: &mut BTreeSet<&'static str>,
+    matched_distinct: &mut BTreeSet<usize>,
+) -> Result<()> {
+    let channel = generated.channel;
+    let channel_name = channel.name;
+
+    let mut defaults = BTreeSet::new();
+    if let Some((name, _)) = channel.enum_defaults.iter().find(|(name, _)| !defaults.insert(name)) {
+        bail!("{channel_name}: enum default for {name} is listed twice");
+    }
+
+    // Root versions first, so a shared type takes its docs from one
+    let mut modules = Vec::new();
+    for resource in &mut generated.resources {
+        let api_name = resource.api.name;
+        let root_version = resource.api.root_version;
+        let mut versions: Vec<_> = resource.versions.iter_mut().collect();
+        versions.sort_by_key(|module| module.api_version != root_version);
+        for module in versions {
+            let api_version = &module.api_version;
+            modules.push(consolidate::Module {
+                name: format!("{api_name} {api_version}"),
+                file: &mut module.file,
+            });
+        }
+    }
+
+    let types = consolidate::consolidate(channel_name, SHARED_TYPES, &mut modules, matched_names)
+        .with_context(|| format!("{channel_name}: consolidating shared types"))?;
+    let named = consolidate::type_names(&types);
+    let mut common = gen_common_prelude();
+    common.extend(types);
+
+    let mut files: Vec<&[syn::Item]> = modules.iter().map(|module| &module.file.items[..]).collect();
+    files.push(&common);
+    consolidate::check_duplicates(channel_name, &files, &named, DISTINCT, matched_distinct)?;
+
+    let mut unused: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
+    for module in &mut modules {
+        add_enum_defaults(&mut module.file.items, channel.enum_defaults, &mut unused);
+    }
+    add_enum_defaults(&mut common, channel.enum_defaults, &mut unused);
+    if let Some(name) = unused.first() {
         bail!("{channel_name}: enum default for {name} matches no generated enum");
     }
 
-    Ok(GeneratedChannel { channel, resources })
+    generated.common = common;
+    Ok(())
 }
 
 /// Replaces a channel's bindings and CRD fixtures with what was generated.
 fn write_channel(bundle: &str, generated: &GeneratedChannel) -> Result<()> {
-    let GeneratedChannel { channel, resources } = generated;
+    let GeneratedChannel {
+        channel,
+        resources,
+        common,
+    } = generated;
     let channel_name = channel.name;
     let dir = format!("{APIS_DIR}/{channel_name}");
     let fixtures_dir = format!("{CRD_FIXTURES_DIR}/{channel_name}");
@@ -403,6 +486,10 @@ fn write_channel(bundle: &str, generated: &GeneratedChannel) -> Result<()> {
         fs::write(format!("{dir}/{api_name}.rs"), gen_resource_module(api, &crd.spec))?;
     }
 
+    fs::write(
+        format!("{dir}/common.rs"),
+        format!("{GENERATED_HEADER}{COMMON_DOC}{}", print_items(common)),
+    )?;
     fs::write(format!("{dir}.rs"), gen_channel_module(channel))?;
     fs::write(format!("{dir}/constants.rs"), gen_constants(channel.conditions))?;
     Ok(())
@@ -415,7 +502,6 @@ fn generate_version(
     api: &Api,
     crd: &FetchedCrd,
     crd_version: &CrdVersion,
-    unused_defaults: &mut BTreeSet<&'static str>,
 ) -> Result<VersionModule> {
     let channel_name = channel.name;
     let api_name = api.name;
@@ -424,9 +510,8 @@ fn generate_version(
     eprintln!("generating {channel_name} api {api_name} {api_version}");
     let kopium_rs = kopium(&crd.yaml, api_version)
         .with_context(|| format!("kopium failed for {channel_name} {api_name} {api_version}"))?;
-    let (kopium_header, mut file) =
+    let (kopium_header, file) =
         parse_kopium(&kopium_rs).with_context(|| format!("{channel_name} {api_name} {api_version}"))?;
-    add_enum_defaults(&mut file, channel.enum_defaults, unused_defaults);
 
     let mut header = gen_version_doc(bundle, channel, &crd.spec, crd_version);
     header.push_str(kopium_header);
@@ -455,13 +540,16 @@ fn parse_kopium(kopium_rs: &str) -> Result<(&str, syn::File)> {
     Ok((header, file))
 }
 
-/// Prints a version module: its header, then its items. Items are printed one
-/// at a time so they can be separated by blank lines, which `prettyplease`
-/// doesn't add.
+/// Prints a version module: its header, then its items.
 fn print_version_module(module: &VersionModule) -> String {
     let VersionModule { header, file, .. } = module;
-    let items = file
-        .items
+    format!("{header}{items}", items = print_items(&file.items))
+}
+
+/// Prints items one at a time, so they can be separated by blank lines, which
+/// `prettyplease` doesn't add.
+fn print_items(items: &[syn::Item]) -> String {
+    items
         .iter()
         .map(|item| {
             prettyplease::unparse(&syn::File {
@@ -472,8 +560,16 @@ fn print_version_module(module: &VersionModule) -> String {
             })
         })
         .collect::<Vec<_>>()
-        .join("\n");
-    format!("{header}{items}")
+        .join("\n")
+}
+
+/// The path a channel's modules are public at.
+fn public_path(channel: &str) -> String {
+    if channel == STANDARD.name {
+        "gateway_api".to_string()
+    } else {
+        format!("gateway_api::{channel}")
+    }
 }
 
 /// Reads the root type name from kopium's `#[kube(group = ...)]` attribute:
@@ -611,6 +707,7 @@ fn gen_channel_module(channel: &Channel) -> String {
     for Api { name, .. } in channel.apis {
         writeln!(out, "pub mod {name};").unwrap();
     }
+    out.push_str("pub mod common;\n");
     out.push_str("pub mod constants;\n");
     out
 }
@@ -698,28 +795,60 @@ fn gen_version_doc(bundle: &str, channel: &Channel, spec: &CrdSpec, v: &CrdVersi
     )
 }
 
-/// Adds `Default` impls for the enums in `file` that kopium cannot derive one
-/// for, removing each matched entry from `unused`.
-fn add_enum_defaults(file: &mut syn::File, defaults: &[(&'static str, &str)], unused: &mut BTreeSet<&'static str>) {
+/// Adds a `Default` impl after each enum in `items` that kopium cannot derive
+/// one for, removing each matched entry from `unused`.
+fn add_enum_defaults(
+    items: &mut Vec<syn::Item>,
+    defaults: &[(&'static str, &str)],
+    unused: &mut BTreeSet<&'static str>,
+) {
     for (name, default) in defaults {
-        let defined = file
-            .items
+        let Some(at) = items
             .iter()
-            .any(|item| matches!(item, syn::Item::Enum(item) if item.ident == name));
-        if !defined {
+            .position(|item| matches!(item, syn::Item::Enum(item) if item.ident == name))
+        else {
             continue;
-        }
+        };
         unused.remove(name);
         let name = syn::Ident::new(name, Span::call_site());
         let default = syn::Ident::new(default, Span::call_site());
-        file.items.push(syn::parse_quote! {
-            impl Default for #name {
-                fn default() -> Self {
-                    #name::#default
+        items.insert(
+            at + 1,
+            syn::parse_quote! {
+                impl Default for #name {
+                    fn default() -> Self {
+                        #name::#default
+                    }
                 }
-            }
-        });
+            },
+        );
     }
+}
+
+// -----------------------------------------------------------------------------
+// common.rs generation
+// -----------------------------------------------------------------------------
+
+const COMMON_DOC: &str = "//! Types that upstream shares between resources, each named after its upstream Go\n\
+                          //! type.\n\
+                          \n";
+
+/// The imports the `common` module's types use, as kopium writes them.
+fn gen_common_prelude() -> Vec<syn::Item> {
+    vec![
+        syn::parse_quote! {
+            #[allow(unused_imports)]
+            mod prelude {
+                pub use k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition;
+                pub use schemars::JsonSchema;
+                pub use serde::{Deserialize, Serialize};
+                pub use std::collections::BTreeMap;
+            }
+        },
+        syn::parse_quote!(
+            use self::prelude::*;
+        ),
+    ]
 }
 
 // -----------------------------------------------------------------------------
@@ -755,7 +884,7 @@ fn gen_test_apis(channels: &[GeneratedChannel]) -> String {
          macro_rules! apis {{\n    \
              ($callback:ident) => {{\n"
     );
-    for GeneratedChannel { channel, resources } in channels {
+    for GeneratedChannel { channel, resources, .. } in channels {
         let channel_name = channel.name;
         let cfg = if channel_name == EXPERIMENTAL.name {
             "#[cfg(feature = \"experimental\")] "
@@ -801,7 +930,7 @@ fn gen_test_stub(resource: &str) -> String {
     format!(
         "// TODO: written by `cargo xtask generate` because `{resource}` had no test\n\
          // body. Build a valid object from `self::api` and check it with\n\
-         // `common::crud`, like the other bodies in this directory.\n\
+         // `harness::crud`, like the other bodies in this directory.\n\
          \n\
          #[allow(unused_imports)] // until the test uses `api`\n\
          use self::api as _;\n\

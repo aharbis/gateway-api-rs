@@ -1,7 +1,10 @@
 use kube::Api;
 
-use self::api::{UdpRoute, UdpRouteRules, UdpRouteRulesBackendRefs, UdpRouteSpec};
-use crate::common;
+use self::{
+    api::{UdpRoute, UdpRouteRules, UdpRouteSpec},
+    common::BackendRef,
+};
+use crate::harness;
 
 #[ignore]
 #[tokio::test]
@@ -9,7 +12,7 @@ async fn crud() {
     let route = UdpRoute {
         spec: UdpRouteSpec {
             rules: vec![UdpRouteRules {
-                backend_refs: vec![UdpRouteRulesBackendRefs {
+                backend_refs: vec![BackendRef {
                     name: "test-service".into(),
                     port: Some(53),
                     ..Default::default()
@@ -21,5 +24,5 @@ async fn crud() {
         ..Default::default()
     };
 
-    common::crud(Api::default_namespaced(common::client().await), route).await;
+    harness::crud(Api::default_namespaced(harness::client().await), route).await;
 }

@@ -12,17 +12,19 @@ version = "0.22.0"
 [workspace.dependencies]
 anyhow = "1.0.102"
 delegate = "0.13.5"
+heck = "0.5.0"
 hyper-util = "0.1.20"
 kube = { version = "4.2.0", default-features = false }
 k8s-openapi = { version = "0.28.0" }
 prettyplease = "0.3.0"
 proc-macro2 = "1.0.107"
+quote = "1.0.47"
 regex = { package = "regex-lite", version = "0.1.9" }
 schemars = "1.2.1"
 serde-saphyr = "0.0.29"
 serde_json = "1.0.149"
 serde = { version = "1.0.228", features = ["derive"] }
-syn = { version = "3.0.9", features = ["full"] }
+syn = { version = "3.0.9", features = ["full", "visit", "visit-mut"] }
 tokio = { version = "1.50.0", features = ["full"] }
 tower = { version = "0.5.3", features = ["limit"] }
 tracing = "0.1.44"

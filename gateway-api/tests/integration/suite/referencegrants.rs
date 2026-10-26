@@ -1,7 +1,7 @@
 use kube::Api;
 
 use self::api::{ReferenceGrant, ReferenceGrantFrom, ReferenceGrantSpec, ReferenceGrantTo};
-use crate::common;
+use crate::harness;
 
 #[ignore]
 #[tokio::test]
@@ -22,5 +22,5 @@ async fn crud() {
         ..Default::default()
     };
 
-    common::crud(Api::default_namespaced(common::client().await), grant).await;
+    harness::crud(Api::default_namespaced(harness::client().await), grant).await;
 }

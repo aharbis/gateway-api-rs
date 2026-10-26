@@ -1,14 +1,17 @@
 use kube::Api;
 
-use self::api::{ListenerSet, ListenerSetListeners, ListenerSetParentRef, ListenerSetSpec};
-use crate::common;
+use self::{
+    api::{ListenerSet, ListenerSetListeners, ListenerSetSpec},
+    common::ParentGatewayReference,
+};
+use crate::harness;
 
 #[ignore]
 #[tokio::test]
 async fn crud() {
     let set = ListenerSet {
         spec: ListenerSetSpec {
-            parent_ref: ListenerSetParentRef {
+            parent_ref: ParentGatewayReference {
                 group: Some("gateway.networking.k8s.io".into()),
                 kind: Some("Gateway".into()),
                 name: "test-gateway".into(),
@@ -24,5 +27,5 @@ async fn crud() {
         ..Default::default()
     };
 
-    common::crud(Api::default_namespaced(common::client().await), set).await;
+    harness::crud(Api::default_namespaced(harness::client().await), set).await;
 }

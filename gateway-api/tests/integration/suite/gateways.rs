@@ -14,7 +14,7 @@ use serde_json::json;
 use self::api::{
     Gateway, GatewayListeners, GatewaySpec, GatewayStatus, GatewayStatusAddresses, GatewayStatusListeners,
 };
-use crate::common;
+use crate::harness;
 
 fn gateway() -> Gateway {
     Gateway {
@@ -35,13 +35,13 @@ fn gateway() -> Gateway {
 #[ignore]
 #[tokio::test]
 async fn crud() {
-    common::crud(Api::default_namespaced(common::client().await), gateway()).await;
+    harness::crud(Api::default_namespaced(harness::client().await), gateway()).await;
 }
 
 #[ignore]
 #[tokio::test]
 async fn status() {
-    let api: Api<Gateway> = Api::default_namespaced(common::client().await);
+    let api: Api<Gateway> = Api::default_namespaced(harness::client().await);
     let mut gw = gateway();
     gw.metadata.generate_name = Some("test-".into());
     let created = api

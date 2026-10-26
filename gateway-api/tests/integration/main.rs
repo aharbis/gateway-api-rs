@@ -1,6 +1,6 @@
 //! Integration tests against the vendored upstream CRDs.
 //!
-//! Each run installs one channel's CRDs (see [`common::CHANNEL`]) and checks
+//! Each run installs one channel's CRDs (see [`harness::CHANNEL`]) and checks
 //! every API version of every resource through the crate's types. Test bodies
 //! live in `suite/` as plain Rust. Each one imports its types from `self::api`,
 //! which [`suite!`] binds to the API version under test, so one body covers
@@ -15,7 +15,7 @@
 #[path = "../support/lib.rs"]
 pub mod support;
 
-mod common;
+mod harness;
 
 /// The file in `suite/` with the test body for one resource and API version:
 /// `<resource>.rs`, unless an arm here routes the version to a body of its
@@ -33,18 +33,30 @@ macro_rules! body {
 /// An [`apis!`] callback that declares a module per channel, resource and API
 /// version, e.g. `standard::httproutes::v1beta1`, that binds `api` to
 /// `gateway_api::apis::standard::httproutes::v1beta1` and includes the
-/// [`body!`] for it. Bodies are included rather than declared as modules, so
-/// their tests are in the version's module, e.g.
-/// `standard::httproutes::v1::crud`.
+/// [`body!`] for it. It also binds `common` to the channel's `common` module,
+/// e.g. `gateway_api::apis::standard::common`, and `builders` to the
+/// channel's builders of `common` types, which bodies for different resources
+/// use alike. Bodies are included rather than declared as modules, so their
+/// tests are in the version's module, e.g. `standard::httproutes::v1::crud`.
 macro_rules! suite {
     ($(#[$attr:meta])* $channel:ident { $($resource:ident: $root:ident [$($version:ident),+])+ }) => {
         $(#[$attr])*
         mod $channel {
+            mod builders {
+                use gateway_api::apis::$channel::common;
+
+                include!("builders.rs");
+            }
+
             $(
                 mod $resource {
                     $(
                         mod $version {
                             use gateway_api::apis::$channel::$resource::$version as api;
+                            #[allow(unused_imports)]
+                            use gateway_api::apis::$channel::common;
+                            #[allow(unused_imports)]
+                            use super::super::builders;
 
                             include!(concat!("suite/", body!($resource $version)));
                         }

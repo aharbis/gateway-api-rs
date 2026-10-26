@@ -1,7 +1,7 @@
 use kube::Api;
 
 use self::api::{XMesh, XMeshSpec};
-use crate::common;
+use crate::harness;
 
 #[ignore]
 #[tokio::test]
@@ -14,5 +14,5 @@ async fn crud() {
         ..Default::default()
     };
 
-    common::crud(Api::all(common::client().await), mesh).await;
+    harness::crud(Api::all(harness::client().await), mesh).await;
 }
