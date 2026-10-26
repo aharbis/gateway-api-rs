@@ -105,17 +105,9 @@ const STANDARD: Channel = Channel {
     ],
     enum_defaults: &[
         ("BackendTlsPolicyValidationSubjectAltNamesType", "Hostname"),
-        ("GrpcRouteRulesBackendRefsFiltersType", "RequestHeaderModifier"),
-        ("GrpcRouteRulesFiltersType", "RequestHeaderModifier"),
-        (
-            "HttpRouteRulesBackendRefsFiltersRequestRedirectPathType",
-            "ReplaceFullPath",
-        ),
-        ("HttpRouteRulesBackendRefsFiltersType", "RequestHeaderModifier"),
-        ("HttpRouteRulesBackendRefsFiltersUrlRewritePathType", "ReplaceFullPath"),
-        ("HttpRouteRulesFiltersRequestRedirectPathType", "ReplaceFullPath"),
-        ("HttpRouteRulesFiltersType", "RequestHeaderModifier"),
-        ("HttpRouteRulesFiltersUrlRewritePathType", "ReplaceFullPath"),
+        ("GrpcRouteFilterType", "RequestHeaderModifier"),
+        ("HttpPathModifierType", "ReplaceFullPath"),
+        ("HttpRouteFilterType", "RequestHeaderModifier"),
     ],
     conditions: &[
         ("GatewayClassConditionType", &["Accepted"]),
@@ -185,19 +177,10 @@ const EXPERIMENTAL: Channel = Channel {
     ],
     enum_defaults: &[
         ("BackendTlsPolicyValidationSubjectAltNamesType", "Hostname"),
-        ("GrpcRouteRulesBackendRefsFiltersType", "RequestHeaderModifier"),
-        ("GrpcRouteRulesFiltersType", "RequestHeaderModifier"),
-        ("HttpRouteRulesBackendRefsFiltersExternalAuthProtocol", "Http"),
-        (
-            "HttpRouteRulesBackendRefsFiltersRequestRedirectPathType",
-            "ReplaceFullPath",
-        ),
-        ("HttpRouteRulesBackendRefsFiltersType", "RequestHeaderModifier"),
-        ("HttpRouteRulesBackendRefsFiltersUrlRewritePathType", "ReplaceFullPath"),
-        ("HttpRouteRulesFiltersExternalAuthProtocol", "Http"),
-        ("HttpRouteRulesFiltersRequestRedirectPathType", "ReplaceFullPath"),
-        ("HttpRouteRulesFiltersType", "RequestHeaderModifier"),
-        ("HttpRouteRulesFiltersUrlRewritePathType", "ReplaceFullPath"),
+        ("GrpcRouteFilterType", "RequestHeaderModifier"),
+        ("HttpPathModifierType", "ReplaceFullPath"),
+        ("HttpRouteExternalAuthProtocol", "Http"),
+        ("HttpRouteFilterType", "RequestHeaderModifier"),
     ],
     conditions: &[
         ("GatewayClassConditionType", &["Accepted", "SupportedVersion"]),
@@ -416,19 +399,20 @@ fn consolidate_channel<'t>(
         let mut versions: Vec<_> = resource.versions.iter_mut().collect();
         versions.sort_by_key(|module| module.api_version != root_version);
         for module in versions {
-            let api_version = &module.api_version;
             modules.push(consolidate::Module {
-                name: format!("{api_name} {api_version}"),
+                resource: api_name.to_string(),
+                version: module.api_version.clone(),
+                root: module.api_version == root_version,
                 file: &mut module.file,
             });
         }
     }
 
-    let types = consolidate::consolidate(channel_name, &table.shared_types, &mut modules, matched_names)
+    let consolidated = consolidate::consolidate(channel_name, &table.shared_types, &mut modules, matched_names)
         .with_context(|| format!("{channel_name}: consolidating shared types"))?;
-    let named = consolidate::type_names(&types);
+    let named = consolidated.names;
     let mut common = gen_common_prelude();
-    common.extend(types);
+    common.extend(consolidated.common);
 
     let mut files: Vec<&[syn::Item]> = modules.iter().map(|module| &module.file.items[..]).collect();
     files.push(&common);

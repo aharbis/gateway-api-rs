@@ -18,9 +18,32 @@ use crate::shared_types::{Placement, SharedType};
 
 /// One generated module that takes part in consolidation.
 pub struct Module<'a> {
-    /// Where the module is, for errors, e.g. `httproutes v1`.
-    pub name: String,
+    pub resource: String,
+    pub version: String,
+    /// Whether this is the resource's root version, which defines the shared
+    /// types placed in the resource.
+    pub root: bool,
     pub file: &'a mut syn::File,
+}
+
+impl Module<'_> {
+    /// Where the module is, for errors, e.g. `httproutes v1`.
+    fn name(&self) -> String {
+        format!("{} {}", self.resource, self.version)
+    }
+
+    /// Where the types defined in this module are placed, if any are.
+    fn placement(&self) -> Option<Placement> {
+        self.root.then(|| Placement::Resource(self.resource.clone()))
+    }
+}
+
+/// What consolidating a channel produced, besides the changes to its modules.
+pub struct Consolidated {
+    /// The `common` module's imports and types.
+    pub common: Vec<syn::Item>,
+    /// The new name of every type consolidation replaced.
+    pub names: BTreeSet<String>,
 }
 
 /// Where kopium generated one instance of a type.
@@ -34,22 +57,71 @@ struct Site {
 /// The new name of a kopium type that consolidation replaces.
 struct Rename<'t> {
     name: String,
+    /// Where the new type is defined.
+    placement: Placement,
     /// The table entry, or `None` for a nested type that moved with its parent.
     entry: Option<&'t SharedType>,
+    /// For a type no field uses, the new name of the type it moved with.
+    orphan_of: Option<String>,
+}
+
+/// Paths to new types, within one channel.
+struct Paths<'a> {
+    channel: &'a str,
+    /// Each resource's root version.
+    roots: BTreeMap<String, String>,
+}
+
+impl Paths<'_> {
+    /// The module, under the channel's, that defines types placed at
+    /// `placement`, e.g. `common` or `httproutes::v1`.
+    fn module(&self, placement: &Placement) -> String {
+        match placement {
+            Placement::Common => "common".to_string(),
+            Placement::Resource(resource) => format!("{resource}::{root}", root = self.roots[resource]),
+        }
+    }
+
+    /// The crate path of the module that defines types placed at `placement`.
+    fn crate_module(&self, placement: &Placement) -> String {
+        format!(
+            "crate::apis::{channel}::{module}",
+            channel = self.channel,
+            module = self.module(placement)
+        )
+    }
+
+    /// The public path a type placed at `placement` is documented at. A
+    /// resource re-exports its root version.
+    fn public(&self, placement: &Placement, name: &str) -> String {
+        let public = crate::public_path(self.channel);
+        match placement {
+            Placement::Common => format!("{public}::common::{name}"),
+            Placement::Resource(resource) => format!("{public}::{resource}::{name}"),
+        }
+    }
 }
 
 /// Consolidates `modules`, the modules of one channel, by `table`. Ordered
 /// root versions first, they decide which instance documents a shared type.
-/// Returns the `common` module's types, and adds every kopium name `table`
-/// matched to `matched`.
+/// Adds every kopium name `table` matched to `matched`.
 pub fn consolidate<'t>(
     channel: &str,
     table: &'t [SharedType],
     modules: &mut [Module<'_>],
     matched: &mut BTreeSet<&'t str>,
-) -> Result<Vec<syn::Item>> {
+) -> Result<Consolidated> {
     let items: Vec<_> = modules.iter().map(|module| item_indices(&module.file.items)).collect();
     let renames = plan_renames(table, modules, &items, matched)?;
+    let paths = Paths {
+        channel,
+        roots: modules
+            .iter()
+            .filter(|module| module.root)
+            .map(|module| (module.resource.clone(), module.version.clone()))
+            .collect(),
+    };
+    check_placements(modules, &items, &renames, &paths)?;
 
     // Every instance of a new name, in module order
     let mut groups: BTreeMap<&str, Vec<Site>> = BTreeMap::new();
@@ -70,9 +142,32 @@ pub fn consolidate<'t>(
     }
 
     check_shapes(modules, &items, &renames, &groups)?;
-    let common = emit_common(table, modules, &items, &renames, &groups);
-    replace_sites(channel, modules, &renames)?;
-    Ok(common)
+
+    let mut placements: Vec<&Placement> = Vec::new();
+    for entry in table {
+        if !placements.contains(&&entry.placement) {
+            placements.push(&entry.placement);
+        }
+    }
+    let mut common = Vec::new();
+    let mut defs = BTreeMap::new();
+    for placement in placements {
+        let types = emit_types(table, placement, modules, &items, &renames, &groups);
+        match placement {
+            Placement::Common => common = types,
+            Placement::Resource(resource) if !types.is_empty() => {
+                defs.insert(resource.clone(), types);
+            },
+            Placement::Resource(_) => {},
+        }
+    }
+
+    replace_sites(modules, &renames, defs, &paths)?;
+    rewrite_module(&mut common, Some(&Placement::Common), &renames, &paths)?;
+    Ok(Consolidated {
+        common,
+        names: renames.values().map(|rename| rename.name.clone()).collect(),
+    })
 }
 
 /// Maps the name of each struct and enum in `items` to its index.
@@ -82,11 +177,6 @@ fn item_indices(items: &[syn::Item]) -> BTreeMap<String, usize> {
         .enumerate()
         .filter_map(|(index, item)| Some((item_ident(item)?.to_string(), index)))
         .collect()
-}
-
-/// The names of the structs and enums in `items`.
-pub fn type_names(items: &[syn::Item]) -> BTreeSet<String> {
-    item_indices(items).into_keys().collect()
 }
 
 fn item_ident(item: &syn::Item) -> Option<&syn::Ident> {
@@ -106,8 +196,7 @@ fn item_ident_mut(item: &mut syn::Item) -> Option<&mut syn::Ident> {
 }
 
 /// Names every kopium type the table replaces, and every type nested under
-/// one. A nested type without its own table entry swaps its parent's kopium
-/// name, which prefixes it, for the parent's new name.
+/// one, which is placed with its parent.
 fn plan_renames<'t>(
     table: &'t [SharedType],
     modules: &[Module<'_>],
@@ -123,7 +212,9 @@ fn plan_renames<'t>(
             matched.insert(kopium);
             let rename = Rename {
                 name: entry.rust_name(),
+                placement: entry.placement.clone(),
                 entry: Some(entry),
+                orphan_of: None,
             };
             if let Some(other) = renames.insert(kopium.clone(), rename) {
                 let (go, other_go) = (&entry.go, other.entry.map_or("", |entry| &entry.go));
@@ -132,9 +223,62 @@ fn plan_renames<'t>(
         }
     }
 
-    let mut parents: Vec<String> = renames.keys().cloned().collect();
+    let parents = renames.keys().cloned().collect();
+    move_nested(&mut renames, parents, modules, items)?;
+
+    // kopium also generates types no field uses, such as an enum of an integer
+    // field's values. Each moves with the type whose kopium name is the
+    // longest that prefixes its own.
+    let mut orphans = Vec::new();
+    for (module, names) in modules.iter().zip(items) {
+        let used: BTreeSet<String> = module
+            .file
+            .items
+            .iter()
+            .flat_map(|item| local_refs(item, names))
+            .collect();
+        for name in names
+            .keys()
+            .filter(|name| !used.contains(*name) && !renames.contains_key(*name))
+        {
+            let parent = renames
+                .keys()
+                .filter(|parent| name.len() > parent.len() && name.starts_with(parent.as_str()))
+                .max_by_key(|parent| parent.len());
+            if let Some(parent) = parent {
+                orphans.push((name.clone(), parent.clone()));
+            }
+        }
+    }
+    let mut parents = Vec::new();
+    for (orphan, parent) in orphans {
+        let Rename { name, placement, .. } = &renames[&parent];
+        let rename = Rename {
+            name: format!("{name}{suffix}", suffix = &orphan[parent.len()..]),
+            placement: placement.clone(),
+            entry: None,
+            orphan_of: Some(name.clone()),
+        };
+        if renames.insert(orphan.clone(), rename).is_none() {
+            parents.push(orphan);
+        }
+    }
+    move_nested(&mut renames, parents, modules, items)?;
+    Ok(renames)
+}
+
+/// Renames the types nested under each of `parents`, and under those, by
+/// swapping the parent's kopium name, which prefixes theirs, for its new name.
+/// A nested type with its own table entry keeps that.
+fn move_nested(
+    renames: &mut BTreeMap<String, Rename<'_>>,
+    mut parents: Vec<String>,
+    modules: &[Module<'_>],
+    items: &[BTreeMap<String, usize>],
+) -> Result<()> {
     while let Some(parent) = parents.pop() {
         let new_parent = renames[&parent].name.clone();
+        let placement = renames[&parent].placement.clone();
         for (module, names) in items.iter().enumerate() {
             let Some(&item) = names.get(&parent) else {
                 continue;
@@ -153,14 +297,54 @@ fn plan_renames<'t>(
                     },
                     Some(_) => {},
                     None => {
-                        renames.insert(child.clone(), Rename { name, entry: None });
+                        let placement = placement.clone();
+                        renames.insert(
+                            child.clone(),
+                            Rename {
+                                name,
+                                placement,
+                                entry: None,
+                                orphan_of: None,
+                            },
+                        );
                         parents.push(child);
                     },
                 }
             }
         }
     }
-    Ok(renames)
+    Ok(())
+}
+
+/// Fails if a type placed in a resource is generated by another, or by none
+/// with a root version.
+fn check_placements(
+    modules: &[Module<'_>],
+    items: &[BTreeMap<String, usize>],
+    renames: &BTreeMap<String, Rename<'_>>,
+    paths: &Paths<'_>,
+) -> Result<()> {
+    for (module, names) in modules.iter().zip(items) {
+        for kopium in names.keys() {
+            let Some(Rename {
+                placement: Placement::Resource(resource),
+                ..
+            }) = renames.get(kopium)
+            else {
+                continue;
+            };
+            if *resource != module.resource {
+                bail!(
+                    "{kopium} is placed in {resource}, but {module} generates it",
+                    module = module.name()
+                );
+            }
+            if !paths.roots.contains_key(resource) {
+                bail!("{kopium} is placed in {resource}, which has no root version");
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The local types `item` refers to, in order, without repeats.
@@ -222,7 +406,7 @@ fn check_shapes(
         let first_shape = shapers[first.module].shape_of(&first.kopium);
         for site in rest {
             if shapers[site.module].shape_of(&site.kopium) != first_shape {
-                let describe = |site: &Site| format!("{} ({})", site.kopium, modules[site.module].name);
+                let describe = |site: &Site| format!("{} ({})", site.kopium, modules[site.module].name());
                 let item = |site: &Site| &modules[site.module].file.items[site.item];
                 bail!(
                     "{name}: {first} and {other} differ:\n{diff}",
@@ -360,10 +544,12 @@ fn diff_items(a: &syn::Item, b: &syn::Item) -> String {
     format!("{}{}", only('-', &a, &b), only('+', &b, &a))
 }
 
-/// Builds the `common` module's types: each table entry placed there, in
-/// table order, then the types nested under it.
-fn emit_common(
+/// Builds the types placed at `placement`: each table entry placed there, in
+/// table order, then the types nested under it. Their references still use
+/// kopium names.
+fn emit_types(
     table: &[SharedType],
+    placement: &Placement,
     modules: &[Module<'_>],
     items: &[BTreeMap<String, usize>],
     renames: &BTreeMap<String, Rename<'_>>,
@@ -395,8 +581,6 @@ fn emit_common(
             if let Some(slot) = item_ident_mut(&mut item) {
                 *slot = ident(name);
             }
-            let renames = self.renames;
-            rewrite_refs(&mut item, &mut |old| Some(renamed_path(renames.get(old)?)));
             if let Some(entry) = entry {
                 add_upstream_doc(&mut item, &entry.go);
             }
@@ -408,6 +592,15 @@ fn emit_common(
                 {
                     self.emit(&rename.name.clone(), None);
                 }
+            }
+            let orphans: Vec<String> = self
+                .renames
+                .values()
+                .filter(|rename| rename.orphan_of.as_deref() == Some(name))
+                .map(|rename| rename.name.clone())
+                .collect();
+            for orphan in orphans {
+                self.emit(&orphan, None);
             }
         }
 
@@ -433,7 +626,7 @@ fn emit_common(
         emitted: BTreeSet::new(),
         out: Vec::new(),
     };
-    for entry in table.iter().filter(|entry| entry.placement == Placement::Common) {
+    for entry in table.iter().filter(|entry| entry.placement == *placement) {
         let name = entry.rust_name();
         if groups.contains_key(name.as_str()) {
             emitter.emit(&name, Some(entry));
@@ -476,10 +669,106 @@ fn add_upstream_doc(item: &mut syn::Item, go: &str) {
     attrs.splice(at..at, doc);
 }
 
-/// The path a reference to a renamed type takes in the module it moved to.
-fn renamed_path(rename: &Rename<'_>) -> syn::Path {
-    let name = ident(&rename.name);
-    syn::parse_quote!(#name)
+/// Replaces each renamed type with a deprecated alias to its new name, puts
+/// the types placed in each resource in its root version module, where the
+/// first of them was, and points every module at the new names.
+fn replace_sites(
+    modules: &mut [Module<'_>],
+    renames: &BTreeMap<String, Rename<'_>>,
+    mut defs: BTreeMap<String, Vec<syn::Item>>,
+    paths: &Paths<'_>,
+) -> Result<()> {
+    for module in modules {
+        let placement = module.placement();
+        let name = module.name();
+        let items = &mut module.file.items;
+
+        let mut first_own = None;
+        for (index, item) in items.iter_mut().enumerate() {
+            let Some(old) = item_ident(item).map(ToString::to_string) else {
+                continue;
+            };
+            let Some(rename) = renames.get(&old) else {
+                continue;
+            };
+            if placement.as_ref() == Some(&rename.placement) {
+                first_own.get_or_insert(index);
+            }
+            let old = ident(&old);
+            let note = format!("use `{}`", paths.public(&rename.placement, &rename.name));
+            let target = path(&format!("{}::{}", paths.crate_module(&rename.placement), rename.name));
+            *item = syn::parse_quote! {
+                #[doc(hidden)]
+                #[deprecated(note = #note)]
+                pub type #old = #target;
+            };
+        }
+
+        if let Some(Placement::Resource(resource)) = &placement
+            && let Some(types) = defs.remove(resource)
+        {
+            let Some(at) = first_own else {
+                bail!("{name} is {resource}'s root version, but generates none of the types placed in it");
+            };
+            items.splice(at..at, types);
+        }
+        rewrite_module(items, placement.as_ref(), renames, paths)?;
+    }
+    if let Some(resource) = defs.keys().next() {
+        bail!("types are placed in {resource}, but it has no root version module");
+    }
+    Ok(())
+}
+
+/// Points references in `items`, a module whose own types are placed at
+/// `here`, at the new names, and imports the ones defined elsewhere.
+fn rewrite_module(
+    items: &mut Vec<syn::Item>,
+    here: Option<&Placement>,
+    renames: &BTreeMap<String, Rename<'_>>,
+    paths: &Paths<'_>,
+) -> Result<()> {
+    let local: BTreeSet<String> = items
+        .iter()
+        .filter_map(|item| match item {
+            syn::Item::Type(item) => Some(item.ident.to_string()),
+            item => item_ident(item).map(ToString::to_string),
+        })
+        .collect();
+    let mut imports: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut path_to = |rename: &Rename<'_>| -> syn::Path {
+        let name = &rename.name;
+        if here == Some(&rename.placement) {
+            return path(name);
+        }
+        let module = paths.crate_module(&rename.placement);
+        // A kopium name can equal a new name, and its alias takes that name
+        // in the module.
+        if local.contains(name) {
+            path(&format!("{module}::{name}"))
+        } else {
+            imports.entry(module).or_default().insert(name.clone());
+            path(name)
+        }
+    };
+
+    for item in items.iter_mut() {
+        if item_ident(item).is_some() {
+            rewrite_refs(item, &mut |old| Some(path_to(renames.get(old)?)));
+            rewrite_status(item, &mut path_to, renames)?;
+        }
+    }
+
+    let at = items
+        .iter()
+        .position(|item| matches!(item, syn::Item::Use(_)))
+        .map_or(0, |prelude| prelude + 1);
+    let imports = imports.into_iter().map(|(module, names)| {
+        let names = names.into_iter().collect::<Vec<_>>().join(", ");
+        syn::parse_str::<syn::Item>(&format!("use {module}::{{{names}}};")).expect("an import parses")
+    });
+    items.splice(at..at, imports);
+    Ok(())
 }
 
 /// Rewrites each single-name type path that `rewrite` gives a new path for.
@@ -496,64 +785,10 @@ fn rewrite_refs(item: &mut syn::Item, rewrite: &mut dyn FnMut(&str) -> Option<sy
     Rewrite(rewrite).visit_item_mut(item);
 }
 
-/// Replaces each renamed type with a deprecated alias to its new name, points
-/// the rest at the new names, and imports the ones they use.
-fn replace_sites(channel: &str, modules: &mut [Module<'_>], renames: &BTreeMap<String, Rename<'_>>) -> Result<()> {
-    let channel_ident = ident(channel);
-    let public = crate::public_path(channel);
-
-    for module in modules {
-        let file = &mut *module.file;
-        let local: BTreeSet<String> = item_indices(&file.items).into_keys().collect();
-        let mut used = BTreeSet::new();
-        let mut qualified = |rename: &Rename<'_>| -> syn::Path {
-            let name = ident(&rename.name);
-            // A kopium name can equal its new name, and its alias takes that
-            // name in the module.
-            if local.contains(&rename.name) {
-                syn::parse_quote!(crate::apis::#channel_ident::common::#name)
-            } else {
-                used.insert(rename.name.clone());
-                syn::parse_quote!(#name)
-            }
-        };
-
-        for item in &mut file.items {
-            let Some(old) = item_ident(item).map(ToString::to_string) else {
-                continue;
-            };
-            if let Some(rename) = renames.get(&old) {
-                let (old, name) = (ident(&old), ident(&rename.name));
-                let note = format!("use `{public}::common::{name}`");
-                *item = syn::parse_quote! {
-                    #[doc(hidden)]
-                    #[deprecated(note = #note)]
-                    pub type #old = crate::apis::#channel_ident::common::#name;
-                };
-                continue;
-            }
-            rewrite_refs(item, &mut |old| Some(qualified(renames.get(old)?)));
-            rewrite_status(item, &mut qualified, renames)?;
-        }
-
-        if !used.is_empty() {
-            let names = used.iter().map(|name| ident(name));
-            let import: syn::Item = syn::parse_quote!(use crate::apis::#channel_ident::common::{#(#names),*};);
-            let at = file
-                .items
-                .iter()
-                .position(|item| matches!(item, syn::Item::Use(_)))
-                .map_or(0, |prelude| prelude + 1);
-            file.items.insert(at, import);
-        }
-    }
-    Ok(())
-}
-
 /// Points `#[kube(status = "...")]` at a renamed status type.
 fn rewrite_status(
     item: &mut syn::Item,
-    qualified: &mut dyn FnMut(&Rename<'_>) -> syn::Path,
+    path_to: &mut dyn FnMut(&Rename<'_>) -> syn::Path,
     renames: &BTreeMap<String, Rename<'_>>,
 ) -> Result<()> {
     let syn::Item::Struct(item) = item else {
@@ -571,7 +806,7 @@ fn rewrite_status(
             Ok(())
         })?;
         if let Some(rename) = status.and_then(|status| renames.get(&status)) {
-            let path = qualified(rename).to_token_stream().to_string().replace(' ', "");
+            let path = path_to(rename).to_token_stream().to_string().replace(' ', "");
             *attr = syn::parse_quote!(#[kube(status = #path)]);
         }
     }
@@ -630,17 +865,31 @@ pub fn ident(name: &str) -> syn::Ident {
     syn::Ident::new(name, Span::call_site())
 }
 
+/// Parses a path built from names the generator knows are valid.
+fn path(path: &str) -> syn::Path {
+    syn::parse_str(path).expect("a generated path parses")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::shared_types::Placement;
 
+    fn shared_type(go: &str, placement: Placement, kopium: &[&str]) -> SharedType {
+        SharedType {
+            go: go.into(),
+            rust: None,
+            placement,
+            kopium: kopium.iter().map(ToString::to_string).collect(),
+        }
+    }
+
     fn table() -> Vec<SharedType> {
-        vec![SharedType {
-            go: "ParentRef".into(),
-            placement: Placement::Common,
-            kopium: ["AParent", "BParents", "CParent"].map(String::from).to_vec(),
-        }]
+        vec![shared_type(
+            "ParentRef",
+            Placement::Common,
+            &["AParent", "BParents", "CParent"],
+        )]
     }
 
     fn module_a() -> syn::File {
@@ -679,19 +928,32 @@ mod tests {
         }
     }
 
+    /// Consolidates one module per resource: `a`, `b` and so on, each only a
+    /// root version `v1`.
     fn run(files: &mut [syn::File]) -> Result<(Vec<syn::Item>, BTreeSet<String>)> {
-        let mut modules: Vec<_> = files
+        let resources = ["a", "b", "c"];
+        let modules = files
             .iter_mut()
-            .enumerate()
-            .map(|(index, file)| Module {
-                name: format!("module {index}"),
-                file,
-            })
+            .zip(resources)
+            .map(|(file, resource)| module(resource, "v1", true, file))
             .collect();
-        let table = table();
+        let (consolidated, matched) = run_with(&table(), modules)?;
+        Ok((consolidated.common, matched))
+    }
+
+    fn module<'a>(resource: &str, version: &str, root: bool, file: &'a mut syn::File) -> Module<'a> {
+        Module {
+            resource: resource.into(),
+            version: version.into(),
+            root,
+            file,
+        }
+    }
+
+    fn run_with(table: &[SharedType], mut modules: Vec<Module<'_>>) -> Result<(Consolidated, BTreeSet<String>)> {
         let mut matched = BTreeSet::new();
-        let common = consolidate("standard", &table, &mut modules, &mut matched)?;
-        Ok((common, matched.into_iter().map(String::from).collect()))
+        let consolidated = consolidate("standard", table, &mut modules, &mut matched)?;
+        Ok((consolidated, matched.into_iter().map(String::from).collect()))
     }
 
     fn item<'a>(items: &'a [syn::Item], name: &str) -> &'a syn::Item {
@@ -714,7 +976,7 @@ mod tests {
         let (common, matched) = run(&mut files).unwrap();
 
         assert_eq!(
-            type_names(&common),
+            item_indices(&common).into_keys().collect::<BTreeSet<_>>(),
             BTreeSet::from(["ParentRef".into(), "ParentRefKind".into()])
         );
         assert_eq!(matched, BTreeSet::from(["AParent".into(), "BParents".into()]));
@@ -755,7 +1017,7 @@ mod tests {
             .expect("consolidation should fail")
             .to_string();
         assert!(
-            error.starts_with("ParentRef: AParent (module 0) and BParents (module 1) differ"),
+            error.starts_with("ParentRef: AParent (a v1) and BParents (b v1) differ"),
             "{error}"
         );
         assert!(error.contains("+     pub port: Option<i32>,"), "{error}");
@@ -775,7 +1037,7 @@ mod tests {
             .expect("consolidation should fail")
             .to_string();
         assert!(
-            error.starts_with("ParentRefKind: AParentKind (module 0) and BParentsKind (module 1) differ"),
+            error.starts_with("ParentRefKind: AParentKind (a v1) and BParentsKind (b v1) differ"),
             "{error}"
         );
     }
@@ -840,5 +1102,133 @@ mod tests {
         let error = check(&files, distinct).unwrap_err().to_string();
         let groups: Vec<&str> = error.lines().skip(1).map(str::trim).collect();
         assert_eq!(groups, ["AParent, BParents"]);
+    }
+
+    fn module_with_filters() -> syn::File {
+        syn::parse_quote! {
+            use self::prelude::*;
+            pub struct ARules {
+                pub filters: Vec<ARulesFilters>,
+                pub backend_refs: Vec<ARulesBackendRefs>,
+            }
+            /// Filter defines a filter.
+            pub struct ARulesFilters {
+                pub kind: ARulesFiltersKind,
+            }
+            pub enum ARulesFiltersKind {
+                Header,
+            }
+            pub struct ARulesBackendRefs {
+                pub filters: Vec<ARulesBackendRefsFilters>,
+            }
+            pub struct ARulesBackendRefsFilters {
+                pub kind: ARulesBackendRefsFiltersKind,
+            }
+            pub enum ARulesBackendRefsFiltersKind {
+                Header,
+            }
+        }
+    }
+
+    #[test]
+    fn places_resource_types_in_its_root_version() {
+        let table = [shared_type(
+            "Filter",
+            Placement::Resource("a".into()),
+            &["ARulesFilters", "ARulesBackendRefsFilters"],
+        )];
+        let (mut v1, mut v1beta1) = (module_with_filters(), module_with_filters());
+        let modules = vec![
+            module("a", "v1", true, &mut v1),
+            module("a", "v1beta1", false, &mut v1beta1),
+        ];
+        let (consolidated, _) = run_with(&table, modules).unwrap();
+        assert!(consolidated.common.is_empty());
+        assert_eq!(
+            consolidated.names,
+            BTreeSet::from(["Filter".into(), "FilterKind".into()])
+        );
+
+        // The root version defines the types where the first of them was,
+        // and refers to them by name
+        let names: Vec<String> = v1
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                syn::Item::Type(item) => Some(format!("alias {}", item.ident)),
+                item => item_ident(item).map(ToString::to_string),
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "ARules",
+                "Filter",
+                "FilterKind",
+                "alias ARulesFilters",
+                "alias ARulesFiltersKind",
+                "ARulesBackendRefs",
+                "alias ARulesBackendRefsFilters",
+                "alias ARulesBackendRefsFiltersKind",
+            ]
+        );
+        assert!(tokens(item(&v1.items, "ARules")).contains("Vec < Filter >"));
+        assert!(tokens(item(&v1.items, "Filter")).contains("pub kind : FilterKind"));
+        assert!(!v1.items.iter().any(|item| tokens(item).starts_with("use crate")));
+
+        // Other versions import them from the root version
+        let alias = tokens(item(&v1beta1.items, "ARulesFilters"));
+        assert!(
+            alias.contains("= crate :: apis :: standard :: a :: v1 :: Filter"),
+            "{alias}"
+        );
+        assert!(alias.contains("use `gateway_api::a::Filter`"), "{alias}");
+        assert_eq!(
+            tokens(&v1beta1.items[1]),
+            "use crate :: apis :: standard :: a :: v1 :: { Filter } ;"
+        );
+        assert!(tokens(item(&v1beta1.items, "ARules")).contains("Vec < Filter >"));
+    }
+
+    #[test]
+    fn fails_on_a_resource_type_another_resource_generates() {
+        let table = [shared_type(
+            "Filter",
+            Placement::Resource("b".into()),
+            &["ARulesFilters", "ARulesBackendRefsFilters"],
+        )];
+        let mut a = module_with_filters();
+        let mut b = syn::parse_quote!(
+            use self::prelude::*;
+        );
+        let modules = vec![module("a", "v1", true, &mut a), module("b", "v1", true, &mut b)];
+        let error = run_with(&table, modules).err().expect("consolidation should fail");
+        assert_eq!(
+            error.to_string(),
+            "ARulesBackendRefsFilters is placed in b, but a v1 generates it"
+        );
+    }
+
+    #[test]
+    fn moves_unused_types_with_the_longest_prefixing_parent() {
+        let mut a = module_a();
+        // Like kopium's enum for an integer field's values
+        a.items.push(syn::parse_quote! {
+            pub enum AParentKindCode {
+                Ok,
+            }
+        });
+        // Prefixed by no renamed type
+        a.items.push(syn::parse_quote! {
+            pub enum AOther {
+                Ok,
+            }
+        });
+        let (common, _) = run(&mut [a]).unwrap();
+        let names: Vec<String> = common
+            .iter()
+            .filter_map(|item| item_ident(item).map(ToString::to_string))
+            .collect();
+        assert_eq!(names, ["ParentRef", "ParentRefKind", "ParentRefKindCode"]);
     }
 }

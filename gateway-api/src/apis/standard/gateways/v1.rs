@@ -624,7 +624,7 @@ pub struct GatewayTlsFrontend {
     /// is defined.
     ///
     /// support: Core
-    pub default: GatewayTlsFrontendDefault,
+    pub default: TlsConfig,
     /// PerPort specifies tls configuration assigned per port.
     /// Per port configuration is optional. Once set this configuration overrides
     /// the default configuration for all Listeners handling HTTPS traffic
@@ -641,8 +641,10 @@ pub struct GatewayTlsFrontend {
 /// is defined.
 ///
 /// support: Core
+///
+/// Upstream: `TLSConfig`
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayTlsFrontendDefault {
+pub struct TlsConfig {
     /// Validation holds configuration information for validating the frontend (client).
     /// Setting this field will result in mutual authentication when connecting to the gateway.
     /// In browsers this may result in a dialog appearing
@@ -651,7 +653,7 @@ pub struct GatewayTlsFrontendDefault {
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub validation: Option<GatewayTlsFrontendDefaultValidation>,
+    pub validation: Option<FrontendTlsValidation>,
 }
 
 /// Validation holds configuration information for validating the frontend (client).
@@ -661,8 +663,10 @@ pub struct GatewayTlsFrontendDefault {
 /// The maximum depth of a certificate chain accepted in verification is Implementation specific.
 ///
 /// Support: Core
+///
+/// Upstream: `FrontendTLSValidation`
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayTlsFrontendDefaultValidation {
+pub struct FrontendTlsValidation {
     /// CACertificateRefs contains one or more references to Kubernetes
     /// objects that contain a PEM-encoded TLS CA certificate bundle, which
     /// is used as a trust anchor to validate the certificates presented by
@@ -725,12 +729,8 @@ pub struct GatewayTlsFrontendDefaultValidation {
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<GatewayTlsFrontendDefaultValidationMode>,
+    pub mode: Option<FrontendValidationModeType>,
 }
-
-#[doc(hidden)]
-#[deprecated(note = "use `gateway_api::common::ObjectReference`")]
-pub type GatewayTlsFrontendDefaultValidationCaCertificateRefs = crate::apis::standard::common::ObjectReference;
 
 /// Validation holds configuration information for validating the frontend (client).
 /// Setting this field will result in mutual authentication when connecting to the gateway.
@@ -739,11 +739,29 @@ pub type GatewayTlsFrontendDefaultValidationCaCertificateRefs = crate::apis::sta
 /// The maximum depth of a certificate chain accepted in verification is Implementation specific.
 ///
 /// Support: Core
+///
+/// Upstream: `FrontendValidationModeType`
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GatewayTlsFrontendDefaultValidationMode {
+pub enum FrontendValidationModeType {
     AllowValidOnly,
     AllowInsecureFallback,
 }
+
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::gateways::TlsConfig`")]
+pub type GatewayTlsFrontendDefault = crate::apis::standard::gateways::v1::TlsConfig;
+
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::gateways::FrontendTlsValidation`")]
+pub type GatewayTlsFrontendDefaultValidation = crate::apis::standard::gateways::v1::FrontendTlsValidation;
+
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::common::ObjectReference`")]
+pub type GatewayTlsFrontendDefaultValidationCaCertificateRefs = crate::apis::standard::common::ObjectReference;
+
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::gateways::FrontendValidationModeType`")]
+pub type GatewayTlsFrontendDefaultValidationMode = crate::apis::standard::gateways::v1::FrontendValidationModeType;
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
 pub struct GatewayTlsFrontendPerPort {
@@ -757,116 +775,24 @@ pub struct GatewayTlsFrontendPerPort {
     /// HTTPS traffic and matching given port.
     ///
     /// Support: Core
-    pub tls: GatewayTlsFrontendPerPortTls,
+    pub tls: TlsConfig,
 }
 
-/// TLS store the configuration that will be applied to all Listeners handling
-/// HTTPS traffic and matching given port.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayTlsFrontendPerPortTls {
-    /// Validation holds configuration information for validating the frontend (client).
-    /// Setting this field will result in mutual authentication when connecting to the gateway.
-    /// In browsers this may result in a dialog appearing
-    /// that requests a user to specify the client certificate.
-    /// The maximum depth of a certificate chain accepted in verification is Implementation specific.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub validation: Option<GatewayTlsFrontendPerPortTlsValidation>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::gateways::TlsConfig`")]
+pub type GatewayTlsFrontendPerPortTls = crate::apis::standard::gateways::v1::TlsConfig;
 
-/// Validation holds configuration information for validating the frontend (client).
-/// Setting this field will result in mutual authentication when connecting to the gateway.
-/// In browsers this may result in a dialog appearing
-/// that requests a user to specify the client certificate.
-/// The maximum depth of a certificate chain accepted in verification is Implementation specific.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GatewayTlsFrontendPerPortTlsValidation {
-    /// CACertificateRefs contains one or more references to Kubernetes
-    /// objects that contain a PEM-encoded TLS CA certificate bundle, which
-    /// is used as a trust anchor to validate the certificates presented by
-    /// the client.
-    ///
-    /// A CACertificateRef is invalid if:
-    ///
-    /// * It refers to a resource that cannot be resolved (e.g., the
-    ///   referenced resource does not exist) or is misconfigured (e.g., a
-    ///   ConfigMap does not contain a key named `ca.crt`). In this case, the
-    ///   Reason on all matching HTTPS listeners must be set to `InvalidCACertificateRef`
-    ///   and the Message of the Condition must indicate which reference is invalid and why.
-    ///
-    /// * It refers to an unknown or unsupported kind of resource. In this
-    ///   case, the Reason on all matching HTTPS listeners must be set to
-    ///   `InvalidCACertificateKind` and the Message of the Condition must explain
-    ///   which kind of resource is unknown or unsupported.
-    ///
-    /// * It refers to a resource in another namespace UNLESS there is a
-    ///   ReferenceGrant in the target namespace that allows the CA
-    ///   certificate to be attached. If a ReferenceGrant does not allow this
-    ///   reference, the `ResolvedRefs` on all matching HTTPS listeners condition
-    ///   MUST be set with the Reason `RefNotPermitted`.
-    ///
-    /// Implementations MAY choose to perform further validation of the
-    /// certificate content (e.g., checking expiry or enforcing specific formats).
-    /// In such cases, an implementation-specific Reason and Message MUST be set.
-    ///
-    /// In all cases, the implementation MUST ensure that the `ResolvedRefs`
-    /// condition is set to `status: False` on all targeted listeners (i.e.,
-    /// listeners serving HTTPS on a matching port). The condition MUST
-    /// include a Reason and Message that indicate the cause of the error. If
-    /// ALL CACertificateRefs are invalid, the implementation MUST also ensure
-    /// the `Accepted` condition on the listener is set to `status: False`, with
-    /// the Reason `NoValidCACertificate`.
-    /// Implementations MAY choose to support attaching multiple CA certificates
-    /// to a listener, but this behavior is implementation-specific.
-    ///
-    /// Support: Core - A single reference to a Kubernetes ConfigMap, with the
-    /// CA certificate in a key named `ca.crt`.
-    ///
-    /// Support: Implementation-specific - More than one reference, other kinds
-    /// of resources, or a single reference that includes multiple certificates.
-    #[serde(rename = "caCertificateRefs")]
-    pub ca_certificate_refs: Vec<ObjectReference>,
-    /// FrontendValidationMode defines the mode for validating the client certificate.
-    /// There are two possible modes:
-    ///
-    /// - AllowValidOnly: In this mode, the gateway will accept connections only if
-    ///   the client presents a valid certificate. This certificate must successfully
-    ///   pass validation against the CA certificates specified in `CACertificateRefs`.
-    /// - AllowInsecureFallback: In this mode, the gateway will accept connections
-    ///   even if the client certificate is not presented or fails verification.
-    ///
-    ///   This approach delegates client authorization to the backend and introduce
-    ///   a significant security risk. It should be used in testing environments or
-    ///   on a temporary basis in non-testing environments.
-    ///
-    /// Defaults to AllowValidOnly.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<GatewayTlsFrontendPerPortTlsValidationMode>,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::gateways::FrontendTlsValidation`")]
+pub type GatewayTlsFrontendPerPortTlsValidation = crate::apis::standard::gateways::v1::FrontendTlsValidation;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::common::ObjectReference`")]
 pub type GatewayTlsFrontendPerPortTlsValidationCaCertificateRefs = crate::apis::standard::common::ObjectReference;
 
-/// Validation holds configuration information for validating the frontend (client).
-/// Setting this field will result in mutual authentication when connecting to the gateway.
-/// In browsers this may result in a dialog appearing
-/// that requests a user to specify the client certificate.
-/// The maximum depth of a certificate chain accepted in verification is Implementation specific.
-///
-/// Support: Core
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GatewayTlsFrontendPerPortTlsValidationMode {
-    AllowValidOnly,
-    AllowInsecureFallback,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::gateways::FrontendValidationModeType`")]
+pub type GatewayTlsFrontendPerPortTlsValidationMode = crate::apis::standard::gateways::v1::FrontendValidationModeType;
 
 /// Status defines the current state of Gateway.
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]

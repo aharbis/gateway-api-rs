@@ -24,3 +24,25 @@ fn common_type() -> u8 {
         GatewayListenersTlsMode::Passthrough => 1,
     }
 }
+
+/// A per-resource type, through aliases in its root version and in another
+/// version.
+fn resource_type() -> u8 {
+    use gateway_api::httproutes::{
+        HttpRouteRulesFilters, HttpRouteRulesFiltersRequestRedirect, HttpRouteRulesFiltersType,
+        v1beta1::HttpRouteRulesBackendRefsFiltersType,
+    };
+
+    let filter = HttpRouteRulesFilters {
+        r#type: HttpRouteRulesFiltersType::RequestRedirect,
+        request_redirect: Some(HttpRouteRulesFiltersRequestRedirect {
+            hostname: Some("example.com".into()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    match filter.r#type {
+        HttpRouteRulesBackendRefsFiltersType::RequestRedirect => 0,
+        _ => 1,
+    }
+}

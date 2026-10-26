@@ -40,12 +40,25 @@ impl Table {
     }
 }
 
-/// Where a shared type's one definition is generated.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
+/// Where a shared type's one definition is generated: `common`, or a
+/// resource's name.
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(from = "String")]
 pub enum Placement {
     /// The channel's `common` module.
     Common,
+    /// The resource's root version module, for a type only it uses.
+    Resource(String),
+}
+
+impl From<String> for Placement {
+    fn from(name: String) -> Self {
+        if name == "common" {
+            Self::Common
+        } else {
+            Self::Resource(name)
+        }
+    }
 }
 
 /// An upstream Go type that kopium generates at more than one path.
@@ -54,6 +67,9 @@ pub enum Placement {
 pub struct SharedType {
     /// The Go type's name.
     pub go: String,
+    /// The Rust name, where kopium's casing of the Go name reads badly.
+    #[serde(default)]
+    pub rust: Option<String>,
     pub placement: Placement,
     /// Every kopium name the type replaces, in any channel or API version.
     pub kopium: Vec<String>,
@@ -61,9 +77,10 @@ pub struct SharedType {
 
 impl SharedType {
     /// The Rust name: the Go name with kopium's casing, e.g.
-    /// `HTTPHeaderFilter` becomes `HttpHeaderFilter`.
+    /// `HTTPHeaderFilter` becomes `HttpHeaderFilter`, unless the table gives
+    /// one.
     pub fn rust_name(&self) -> String {
-        self.go.to_upper_camel_case()
+        self.rust.clone().unwrap_or_else(|| self.go.to_upper_camel_case())
     }
 }
 
@@ -92,6 +109,7 @@ mod tests {
         let name = |go: &str| {
             SharedType {
                 go: go.to_string(),
+                rust: None,
                 placement: Placement::Common,
                 kopium: Vec::new(),
             }

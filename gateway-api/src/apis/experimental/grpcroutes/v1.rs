@@ -236,7 +236,7 @@ pub struct GrpcRouteRules {
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub filters: Option<Vec<GrpcRouteRulesFilters>>,
+    pub filters: Option<Vec<GrpcRouteFilter>>,
     /// Matches define conditions used for matching the rule against incoming
     /// gRPC requests. Each match is independent, i.e. this rule will be matched
     /// if **any** one of the matches is satisfied.
@@ -330,7 +330,7 @@ pub struct GrpcRouteRulesBackendRefs {
     /// Support: Implementation-specific (For broader support of filters, use the
     /// Filters field in GRPCRouteRule.)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub filters: Option<Vec<GrpcRouteRulesBackendRefsFilters>>,
+    pub filters: Option<Vec<GrpcRouteFilter>>,
     /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -394,8 +394,10 @@ pub struct GrpcRouteRulesBackendRefs {
 /// examples include request or response modification, implementing
 /// authentication strategies, rate-limiting, and traffic shaping. API
 /// guarantee/conformance is defined based on the type of the filter.
+///
+/// Upstream: `GRPCRouteFilter`
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesBackendRefsFilters {
+pub struct GrpcRouteFilter {
     /// ExtensionRef is an optional, implementation-specific extension to the
     /// "filter" behavior.  For example, resource "myroutefilter" in group
     /// "networking.example.net"). ExtensionRef MUST NOT be used for core and
@@ -454,8 +456,34 @@ pub struct GrpcRouteRulesBackendRefsFilters {
     /// MUST NOT be skipped. Instead, requests that would have been processed by
     /// that filter MUST receive a HTTP error response.
     #[serde(rename = "type")]
-    pub r#type: GrpcRouteRulesBackendRefsFiltersType,
+    pub r#type: GrpcRouteFilterType,
 }
+
+/// GRPCRouteFilter defines processing steps that must be completed during the
+/// request or response lifecycle. GRPCRouteFilters are meant as an extension
+/// point to express processing that may be done in Gateway implementations. Some
+/// examples include request or response modification, implementing
+/// authentication strategies, rate-limiting, and traffic shaping. API
+/// guarantee/conformance is defined based on the type of the filter.
+///
+/// Upstream: `GRPCRouteFilterType`
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
+pub enum GrpcRouteFilterType {
+    ResponseHeaderModifier,
+    RequestHeaderModifier,
+    RequestMirror,
+    ExtensionRef,
+}
+
+impl Default for GrpcRouteFilterType {
+    fn default() -> Self {
+        GrpcRouteFilterType::RequestHeaderModifier
+    }
+}
+
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::grpcroutes::GrpcRouteFilter`")]
+pub type GrpcRouteRulesBackendRefsFilters = crate::apis::experimental::grpcroutes::v1::GrpcRouteFilter;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::LocalObjectReference`")]
@@ -498,94 +526,13 @@ pub type GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierAdd = crate::apis
 #[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
 pub type GrpcRouteRulesBackendRefsFiltersResponseHeaderModifierSet = crate::apis::experimental::common::HttpHeader;
 
-/// GRPCRouteFilter defines processing steps that must be completed during the
-/// request or response lifecycle. GRPCRouteFilters are meant as an extension
-/// point to express processing that may be done in Gateway implementations. Some
-/// examples include request or response modification, implementing
-/// authentication strategies, rate-limiting, and traffic shaping. API
-/// guarantee/conformance is defined based on the type of the filter.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GrpcRouteRulesBackendRefsFiltersType {
-    ResponseHeaderModifier,
-    RequestHeaderModifier,
-    RequestMirror,
-    ExtensionRef,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::grpcroutes::GrpcRouteFilterType`")]
+pub type GrpcRouteRulesBackendRefsFiltersType = crate::apis::experimental::grpcroutes::v1::GrpcRouteFilterType;
 
-impl Default for GrpcRouteRulesBackendRefsFiltersType {
-    fn default() -> Self {
-        GrpcRouteRulesBackendRefsFiltersType::RequestHeaderModifier
-    }
-}
-
-/// GRPCRouteFilter defines processing steps that must be completed during the
-/// request or response lifecycle. GRPCRouteFilters are meant as an extension
-/// point to express processing that may be done in Gateway implementations. Some
-/// examples include request or response modification, implementing
-/// authentication strategies, rate-limiting, and traffic shaping. API
-/// guarantee/conformance is defined based on the type of the filter.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
-pub struct GrpcRouteRulesFilters {
-    /// ExtensionRef is an optional, implementation-specific extension to the
-    /// "filter" behavior.  For example, resource "myroutefilter" in group
-    /// "networking.example.net"). ExtensionRef MUST NOT be used for core and
-    /// extended filters.
-    ///
-    /// Support: Implementation-specific
-    ///
-    /// This filter can be used multiple times within the same rule.
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "extensionRef")]
-    pub extension_ref: Option<LocalObjectReference>,
-    /// RequestHeaderModifier defines a schema for a filter that modifies request
-    /// headers.
-    ///
-    /// Support: Core
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestHeaderModifier")]
-    pub request_header_modifier: Option<HttpHeaderFilter>,
-    /// RequestMirror defines a schema for a filter that mirrors requests.
-    /// Requests are sent to the specified destination, but responses from
-    /// that destination are ignored.
-    ///
-    /// This filter can be used multiple times within the same rule. Note that
-    /// not all implementations will be able to support mirroring to multiple
-    /// backends.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestMirror")]
-    pub request_mirror: Option<HttpRequestMirrorFilter>,
-    /// ResponseHeaderModifier defines a schema for a filter that modifies response
-    /// headers.
-    ///
-    /// Support: Extended
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "responseHeaderModifier")]
-    pub response_header_modifier: Option<HttpHeaderFilter>,
-    /// Type identifies the type of filter to apply. As with other API fields,
-    /// types are classified into three conformance levels:
-    ///
-    /// - Core: Filter types and their corresponding configuration defined by
-    ///   "Support: Core" in this package, e.g. "RequestHeaderModifier". All
-    ///   implementations supporting GRPCRoute MUST support core filters.
-    ///
-    /// - Extended: Filter types and their corresponding configuration defined by
-    ///   "Support: Extended" in this package, e.g. "RequestMirror". Implementers
-    ///   are encouraged to support extended filters.
-    ///
-    /// - Implementation-specific: Filters that are defined and supported by specific vendors.
-    ///   In the future, filters showing convergence in behavior across multiple
-    ///   implementations will be considered for inclusion in extended or core
-    ///   conformance levels. Filter-specific configuration for such filters
-    ///   is specified using the ExtensionRef field. `Type` MUST be set to
-    ///   "ExtensionRef" for custom filters.
-    ///
-    /// Implementers are encouraged to define custom implementation types to
-    /// extend the core API with implementation-specific behavior.
-    ///
-    /// If a reference to a custom filter type cannot be resolved, the filter
-    /// MUST NOT be skipped. Instead, requests that would have been processed by
-    /// that filter MUST receive a HTTP error response.
-    #[serde(rename = "type")]
-    pub r#type: GrpcRouteRulesFiltersType,
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::grpcroutes::GrpcRouteFilter`")]
+pub type GrpcRouteRulesFilters = crate::apis::experimental::grpcroutes::v1::GrpcRouteFilter;
 
 #[doc(hidden)]
 #[deprecated(note = "use `gateway_api::experimental::common::LocalObjectReference`")]
@@ -627,25 +574,9 @@ pub type GrpcRouteRulesFiltersResponseHeaderModifierAdd = crate::apis::experimen
 #[deprecated(note = "use `gateway_api::experimental::common::HttpHeader`")]
 pub type GrpcRouteRulesFiltersResponseHeaderModifierSet = crate::apis::experimental::common::HttpHeader;
 
-/// GRPCRouteFilter defines processing steps that must be completed during the
-/// request or response lifecycle. GRPCRouteFilters are meant as an extension
-/// point to express processing that may be done in Gateway implementations. Some
-/// examples include request or response modification, implementing
-/// authentication strategies, rate-limiting, and traffic shaping. API
-/// guarantee/conformance is defined based on the type of the filter.
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GrpcRouteRulesFiltersType {
-    ResponseHeaderModifier,
-    RequestHeaderModifier,
-    RequestMirror,
-    ExtensionRef,
-}
-
-impl Default for GrpcRouteRulesFiltersType {
-    fn default() -> Self {
-        GrpcRouteRulesFiltersType::RequestHeaderModifier
-    }
-}
+#[doc(hidden)]
+#[deprecated(note = "use `gateway_api::experimental::grpcroutes::GrpcRouteFilterType`")]
+pub type GrpcRouteRulesFiltersType = crate::apis::experimental::grpcroutes::v1::GrpcRouteFilterType;
 
 /// GRPCRouteMatch defines the predicate used to match requests to a given
 /// action. Multiple match types are ANDed together, i.e. the match will
