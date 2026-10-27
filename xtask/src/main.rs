@@ -19,6 +19,8 @@ use serde::Deserialize;
 use crate::shared_types::Table;
 
 mod consolidate;
+mod derive;
+mod gofacts;
 mod shared_types;
 
 // -----------------------------------------------------------------------------
@@ -295,7 +297,19 @@ fn generate(version: &str) -> Result<()> {
         channels.push(generate_channel(version, channel)?);
     }
 
+    let facts = gofacts::generate(version)?;
+    let derived = derive_table(&channels, &facts)?;
     let table = Table::load()?;
+    let diffs = derive::compare(&derived, &table);
+    if diffs.is_empty() {
+        eprintln!("the derived table matches xtask/shared-types.yaml");
+    } else {
+        eprintln!("the derived table differs from xtask/shared-types.yaml:");
+        for diff in &diffs {
+            eprintln!("  {diff}");
+        }
+    }
+
     let mut matched = consolidate::Matched::default();
     let mut matched_distinct = BTreeSet::new();
     for channel in &mut channels {
@@ -335,6 +349,33 @@ fn generate(version: &str) -> Result<()> {
     fs::write(TEST_APIS_FILE, gen_test_apis(&channels))?;
     rustfmt()?;
     Ok(())
+}
+
+/// Derives the shared types table from kopium's output and the Go facts.
+fn derive_table(channels: &[GeneratedChannel], facts: &[gofacts::Facts]) -> Result<Table> {
+    let mut inputs = Vec::new();
+    for generated in channels {
+        let channel_name = generated.channel.name;
+        let facts = facts
+            .iter()
+            .find(|facts| facts.channel == channel_name)
+            .with_context(|| format!("no Go facts for the {channel_name} channel"))?;
+        let mut modules = Vec::new();
+        for GeneratedResource { api, crd, versions, .. } in &generated.resources {
+            for module in versions {
+                modules.push(derive::Module {
+                    resource: api.name,
+                    version: &module.api_version,
+                    root: module.api_version == api.root_version,
+                    group: &crd.spec.group,
+                    kind: &crd.spec.names.kind,
+                    file: &module.file,
+                });
+            }
+        }
+        inputs.push((facts, modules));
+    }
+    derive::derive(&inputs)
 }
 
 fn generate_channel(version: &str, channel: &'static Channel) -> Result<GeneratedChannel> {
