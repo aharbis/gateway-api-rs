@@ -20,6 +20,7 @@ use crate::shared_types::Table;
 
 mod consolidate;
 mod derive;
+mod emit;
 mod gofacts;
 mod shared_types;
 
@@ -130,14 +131,23 @@ const EXPERIMENTAL: Channel = Channel {
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
-    if let Some("generate") = args.get(1).map(String::as_str) {
-        let version = args
-            .get(2)
-            .context("usage: cargo xtask generate <version>\n  e.g. cargo xtask generate v1.4.1")?;
-        generate(version)
-    } else {
-        eprintln!("usage: cargo xtask generate <version>");
-        process::exit(1);
+    match args.get(1).map(String::as_str) {
+        Some("generate") => {
+            let version = args
+                .get(2)
+                .context("usage: cargo xtask generate <version>\n  e.g. cargo xtask generate v1.4.1")?;
+            generate(version)
+        },
+        Some("preview") => {
+            let version = args
+                .get(2)
+                .context("usage: cargo xtask preview <version>\n  e.g. cargo xtask preview v1.5.1")?;
+            preview(version)
+        },
+        _ => {
+            eprintln!("usage: cargo xtask generate|preview <version>");
+            process::exit(1);
+        },
     }
 }
 
@@ -538,6 +548,133 @@ fn rustfmt() -> Result<()> {
 }
 
 // -----------------------------------------------------------------------------
+// Preview: Rust types straight from the Go source
+// -----------------------------------------------------------------------------
+
+const PREVIEW_DIR: &str = "gateway-api-preview";
+
+/// Generates `gateway-api-preview` from the Go facts alone, for every API
+/// version of every resource in the vendored CRDs that `generate` wrote.
+fn preview(version: &str) -> Result<()> {
+    let facts = gofacts::generate(version)?;
+    let src = format!("{PREVIEW_DIR}/src");
+    if Path::new(&src).exists() {
+        fs::remove_dir_all(&src)?;
+    }
+    fs::create_dir_all(&src)?;
+
+    let mut lib = format!(
+        "{GENERATED_HEADER}\
+         //! A preview of Gateway API {version} bindings generated straight from the upstream\n\
+         //! Go source, with one module per Go package and one type per Go type.\n\
+         \n"
+    );
+    let mut roots = String::from(GENERATED_HEADER);
+    roots.push_str("\n/// Every API version's comparison with the upstream CRD.\nfn comparisons() -> Vec<Comparison> {\n    vec![\n");
+    let mut channels = Vec::new();
+    for channel in [&STANDARD, &EXPERIMENTAL] {
+        let channel_name = channel.name;
+        let facts = facts
+            .iter()
+            .find(|facts| facts.channel == channel_name)
+            .with_context(|| format!("no Go facts for the {channel_name} channel"))?;
+        channels.push((channel, facts, preview_kinds(channel)?));
+    }
+    // What each other channel's kinds reach, which the shared files' extra
+    // types leave out
+    let mut reached = Vec::new();
+    for (_, facts, kinds) in &channels {
+        reached.push(emit::reachable(facts, kinds)?);
+    }
+    for (index, (channel, facts, kinds)) in channels.iter().enumerate() {
+        let channel_name = channel.name;
+        let mut elsewhere: BTreeSet<String> = reached
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != index)
+            .flat_map(|(_, r)| r.iter().cloned())
+            .collect();
+        elsewhere.retain(|key| !reached[index].contains(key));
+        let emitted =
+            emit::emit(facts, kinds, &elsewhere).with_context(|| format!("{channel_name}: emitting the preview"))?;
+
+        writeln!(lib, "pub mod {channel_name};").unwrap();
+        let mut parents: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for (module, code) in &emitted.modules {
+            let file = format!("{src}/{channel_name}/{module}.rs");
+            fs::create_dir_all(Path::new(&file).parent().expect("a module file has a directory"))?;
+            fs::write(&file, code)?;
+            let mut parent = channel_name.to_string();
+            for part in module.split('/') {
+                parents.entry(parent.clone()).or_default().insert(part.to_string());
+                parent = format!("{parent}/{part}");
+            }
+        }
+        for (parent, children) in parents {
+            let mut out = String::from(GENERATED_HEADER);
+            for child in children {
+                writeln!(out, "pub mod {child};").unwrap();
+            }
+            fs::write(format!("{src}/{parent}.rs"), out)?;
+        }
+        for (resource, version, root) in &emitted.roots {
+            let root = root.replacen("crate::", "gateway_api_preview::", 1);
+            let channel = if channel_name == STANDARD.name {
+                "Standard"
+            } else {
+                "Experimental"
+            };
+            writeln!(
+                roots,
+                "        compare::<{root}>(Channel::{channel}, \"{resource}\", \"{version}\"),"
+            )
+            .unwrap();
+        }
+    }
+    roots.push_str("    ]\n}\n");
+    fs::write(format!("{src}/lib.rs"), lib)?;
+    fs::write(format!("{PREVIEW_DIR}/tests/generated/roots.rs"), roots)?;
+
+    let status = Command::new("rustfmt")
+        .args([
+            "+nightly",
+            &format!("{src}/lib.rs"),
+            &format!("{PREVIEW_DIR}/tests/generated/roots.rs"),
+        ])
+        .status()?;
+    if !status.success() {
+        bail!("rustfmt failed");
+    }
+    Ok(())
+}
+
+/// Every API version of every resource in a channel, from the vendored CRDs.
+fn preview_kinds(channel: &Channel) -> Result<Vec<emit::KindVersion>> {
+    let channel_name = channel.name;
+    let mut kinds = Vec::new();
+    for api in channel.apis {
+        let path = format!(
+            "{CRD_FIXTURES_DIR}/{channel_name}/{crd_prefix}{name}.yaml",
+            crd_prefix = api.crd_prefix,
+            name = api.name
+        );
+        let yaml = fs::read_to_string(&path).with_context(|| format!("failed to read {path}; run generate first"))?;
+        let crd: Crd = serde_saphyr::from_str(&yaml).with_context(|| format!("failed to parse {path}"))?;
+        for crd_version in &crd.spec.versions {
+            kinds.push(emit::KindVersion {
+                resource: api.name.to_string(),
+                group: crd.spec.group.clone(),
+                version: crd_version.name.clone(),
+                kind: crd.spec.names.kind.clone(),
+                plural: crd.spec.names.plural.clone(),
+                namespaced: crd.spec.scope == "Namespaced",
+            });
+        }
+    }
+    Ok(kinds)
+}
+
+// -----------------------------------------------------------------------------
 // CRD fetching and kopium conversion
 // -----------------------------------------------------------------------------
 
@@ -635,12 +772,14 @@ struct Crd {
 struct CrdSpec {
     group: String,
     names: CrdNames,
+    scope: String,
     versions: Vec<CrdVersion>,
 }
 
 #[derive(Deserialize)]
 struct CrdNames {
     kind: String,
+    plural: String,
 }
 
 #[derive(Deserialize)]
@@ -936,7 +1075,7 @@ fn gen_constants(facts: &gofacts::Facts, groups: &BTreeSet<&str>) -> Result<Stri
             let go = &ty.name;
 
             out.push('\n');
-            write_doc(&mut out, "", &ty.doc);
+            emit::write_doc(&mut out, "", &ty.doc);
             writeln!(out, "///\n/// Upstream: `{go}`.").unwrap();
             write!(out, "#[derive(Debug, PartialEq, Eq)]\npub enum {name} {{\n").unwrap();
             for c in consts {
@@ -944,7 +1083,7 @@ fn gen_constants(facts: &gofacts::Facts, groups: &BTreeSet<&str>) -> Result<Stri
                 if !value.chars().next().is_some_and(char::is_uppercase) || !value.chars().all(char::is_alphanumeric) {
                     bail!("{go} value {value} isn't a Rust identifier");
                 }
-                write_doc(&mut out, "    ", &c.doc);
+                emit::write_doc(&mut out, "    ", &c.doc);
                 writeln!(out, "    {value},").unwrap();
             }
             out.push_str("}\n");
@@ -962,16 +1101,4 @@ fn gen_constants(facts: &gofacts::Facts, groups: &BTreeSet<&str>) -> Result<Stri
         }
     }
     Ok(out)
-}
-
-/// Writes a Go doc comment as Rust doc lines, indented by `indent`.
-fn write_doc(out: &mut String, indent: &str, doc: &str) {
-    for line in doc.lines() {
-        let line = line.trim_end();
-        if line.is_empty() {
-            writeln!(out, "{indent}///").unwrap();
-        } else {
-            writeln!(out, "{indent}/// {line}").unwrap();
-        }
-    }
 }

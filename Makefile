@@ -43,6 +43,12 @@ package:
 generate:
 	cargo xtask generate $(GATEWAY_API_VERSION)
 
+# A preview crate generated straight from the upstream Go source, without
+# kopium. Reads the CRD fixtures that `generate` writes.
+.PHONY: preview
+preview:
+	cargo xtask preview $(GATEWAY_API_VERSION)
+
 define run_integration_tests
 	@$(MAKE) --no-print-directory kind.start
 	@trap '$(MAKE) --no-print-directory kind.stop' EXIT; \

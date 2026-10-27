@@ -55,6 +55,12 @@ pub struct Type {
     pub alias: Option<TypeRef>,
     #[serde(default)]
     pub fields: Vec<Field>,
+    /// For a scalar, its basic type, e.g. `string`.
+    #[serde(default)]
+    pub basic: Option<String>,
+    /// From the type's enum marker.
+    #[serde(default, rename = "enum")]
+    pub enum_values: Vec<String>,
 }
 
 #[derive(Deserialize, PartialEq, Eq)]
@@ -81,6 +87,12 @@ pub struct Field {
     /// The raw value of the field's `+kubebuilder:default` marker.
     #[serde(default)]
     pub default: Option<String>,
+    /// By controller-gen's rule: `+optional`, or `omitempty` without
+    /// `+required`.
+    #[serde(default)]
+    pub optional: bool,
+    #[serde(default)]
+    pub doc: String,
 }
 
 /// A typed const, such as `GatewayConditionProgrammed`.
@@ -101,6 +113,8 @@ pub struct TypeRef {
     #[serde(default)]
     pub named: Option<String>,
     #[serde(default)]
+    basic: Option<String>,
+    #[serde(default)]
     pub pointer: Option<Box<TypeRef>>,
     #[serde(default)]
     pub slice: Option<Box<TypeRef>>,
@@ -114,6 +128,19 @@ pub struct MapRef {
 }
 
 impl TypeRef {
+    /// The basic type this is, e.g. `string`.
+    pub fn basic(&self) -> Option<&str> {
+        self.basic.as_deref()
+    }
+
+    /// Whether this is a string, through pointers and slices.
+    pub fn is_string(&self) -> bool {
+        match (&self.pointer, &self.slice) {
+            (Some(inner), _) | (_, Some(inner)) => inner.is_string(),
+            _ => self.basic() == Some("string"),
+        }
+    }
+
     /// The named type this refers to through pointers, slices and map values.
     pub fn element(&self) -> Option<&str> {
         if let Some(named) = &self.named {

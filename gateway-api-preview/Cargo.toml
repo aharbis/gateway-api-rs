@@ -1,0 +1,23 @@
+[package]
+name = "gateway-api-preview"
+description = "A preview of Gateway API bindings generated straight from the upstream Go source"
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+k8s-openapi = { workspace = true, features = ["schemars"] }
+kube = { workspace = true, features = ["derive"] }
+schemars.workspace = true
+serde_json.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+k8s-openapi = { workspace = true, features = ["v1_32", "schemars"] }
+kube = { workspace = true, features = ["derive"] }
+
+serde-saphyr.workspace = true
