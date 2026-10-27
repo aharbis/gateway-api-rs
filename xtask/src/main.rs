@@ -3,7 +3,7 @@
 #![allow(clippy::module_name_repetitions, clippy::must_use_candidate)]
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env,
     fmt::Write,
     fs,
@@ -89,8 +89,6 @@ impl Api {
 struct Channel {
     name: &'static str,
     apis: &'static [Api],
-    enum_defaults: &'static [(&'static str, &'static str)],
-    conditions: &'static [(&'static str, &'static [&'static str])],
 }
 
 const STANDARD: Channel = Channel {
@@ -104,60 +102,6 @@ const STANDARD: Channel = Channel {
         Api::standard("listenersets", "v1"),
         Api::standard("referencegrants", "v1"),
         Api::standard("tlsroutes", "v1"),
-    ],
-    enum_defaults: &[
-        ("BackendTlsPolicyValidationSubjectAltNamesType", "Hostname"),
-        ("GrpcRouteFilterType", "RequestHeaderModifier"),
-        ("HttpPathModifierType", "ReplaceFullPath"),
-        ("HttpRouteFilterType", "RequestHeaderModifier"),
-    ],
-    conditions: &[
-        ("GatewayClassConditionType", &["Accepted"]),
-        (
-            "GatewayClassConditionReason",
-            &["Accepted", "InvalidParameters", "Pending", "Unsupported", "Waiting"],
-        ),
-        ("GatewayConditionType", &["Programmed", "Accepted", "Ready"]),
-        (
-            "GatewayConditionReason",
-            &[
-                "Programmed",
-                "Invalid",
-                "NoResources",
-                "AddressNotAssigned",
-                "AddressNotUsable",
-                "Accepted",
-                "ListenersNotValid",
-                "Pending",
-                "UnsupportedAddress",
-                "InvalidParameters",
-                "Ready",
-                "ListenersNotReady",
-            ],
-        ),
-        (
-            "ListenerConditionType",
-            &["Conflicted", "Accepted", "ResolvedRefs", "Programmed", "Ready"],
-        ),
-        (
-            "ListenerConditionReason",
-            &[
-                "HostnameConflict",
-                "ProtocolConflict",
-                "NoConflicts",
-                "Accepted",
-                "PortUnavailable",
-                "UnsupportedProtocol",
-                "ResolvedRefs",
-                "InvalidCertificateRef",
-                "InvalidRouteKinds",
-                "RefNotPermitted",
-                "Programmed",
-                "Invalid",
-                "Pending",
-                "Ready",
-            ],
-        ),
     ],
 };
 
@@ -176,69 +120,6 @@ const EXPERIMENTAL: Channel = Channel {
         Api::standard("udproutes", "v1alpha2"),
         Api::experimental("xbackendtrafficpolicies", "v1alpha1"),
         Api::experimental("xmeshes", "v1alpha1"),
-    ],
-    enum_defaults: &[
-        ("BackendTlsPolicyValidationSubjectAltNamesType", "Hostname"),
-        ("GrpcRouteFilterType", "RequestHeaderModifier"),
-        ("HttpPathModifierType", "ReplaceFullPath"),
-        ("HttpRouteExternalAuthProtocol", "Http"),
-        ("HttpRouteFilterType", "RequestHeaderModifier"),
-    ],
-    conditions: &[
-        ("GatewayClassConditionType", &["Accepted", "SupportedVersion"]),
-        (
-            "GatewayClassConditionReason",
-            &[
-                "Accepted",
-                "InvalidParameters",
-                "Pending",
-                "Unsupported",
-                "Waiting",
-                "SupportedVersion",
-                "UnsupportedVersion",
-            ],
-        ),
-        ("GatewayConditionType", &["Programmed", "Accepted", "Ready"]),
-        (
-            "GatewayConditionReason",
-            &[
-                "Programmed",
-                "Invalid",
-                "NoResources",
-                "AddressNotAssigned",
-                "AddressNotUsable",
-                "Accepted",
-                "ListenersNotValid",
-                "Pending",
-                "UnsupportedAddress",
-                "InvalidParameters",
-                "Ready",
-                "ListenersNotReady",
-            ],
-        ),
-        (
-            "ListenerConditionType",
-            &["Conflicted", "Accepted", "ResolvedRefs", "Programmed", "Ready"],
-        ),
-        (
-            "ListenerConditionReason",
-            &[
-                "HostnameConflict",
-                "ProtocolConflict",
-                "NoConflicts",
-                "Accepted",
-                "PortUnavailable",
-                "UnsupportedProtocol",
-                "ResolvedRefs",
-                "InvalidCertificateRef",
-                "InvalidRouteKinds",
-                "RefNotPermitted",
-                "Programmed",
-                "Invalid",
-                "Pending",
-                "Ready",
-            ],
-        ),
     ],
 };
 
@@ -271,6 +152,8 @@ struct GeneratedChannel {
     resources: Vec<GeneratedResource>,
     /// The `common` module's items, once consolidated.
     common: Vec<syn::Item>,
+    /// The `constants` module, from the Go facts.
+    constants: String,
 }
 
 /// One resource's generated bindings.
@@ -298,10 +181,24 @@ fn generate(version: &str) -> Result<()> {
     }
 
     let facts = gofacts::generate(version)?;
-    let table = derive_table(&channels, &facts)?;
+    let (table, enum_defaults) = {
+        let inputs = derive_inputs(&channels, &facts)?;
+        let table = derive::derive(&inputs)?;
+        let enum_defaults = inputs
+            .iter()
+            .map(|(facts, modules)| derive::enum_defaults(facts, modules, &table))
+            .collect::<Result<Vec<_>>>()?;
+        (table, enum_defaults)
+    };
     let mut matched = consolidate::Matched::default();
-    for channel in &mut channels {
-        consolidate_channel(channel, &table, &mut matched)?;
+    for ((channel, defaults), facts) in channels.iter_mut().zip(&enum_defaults).zip(&facts) {
+        consolidate_channel(channel, &table, defaults, &mut matched)?;
+        let groups = channel
+            .resources
+            .iter()
+            .map(|resource| resource.crd.spec.group.as_str())
+            .collect();
+        channel.constants = gen_constants(facts, &groups)?;
     }
 
     for channel in &channels {
@@ -318,8 +215,12 @@ fn generate(version: &str) -> Result<()> {
     Ok(())
 }
 
-/// Derives the shared types table from kopium's output and the Go facts.
-fn derive_table(channels: &[GeneratedChannel], facts: &[gofacts::Facts]) -> Result<Table> {
+/// Pairs each channel's kopium modules with its Go facts, for deriving the
+/// shared types table and the enum defaults.
+fn derive_inputs<'a>(
+    channels: &'a [GeneratedChannel],
+    facts: &'a [gofacts::Facts],
+) -> Result<Vec<(&'a gofacts::Facts, Vec<derive::Module<'a>>)>> {
     let mut inputs = Vec::new();
     for generated in channels {
         let channel_name = generated.channel.name;
@@ -342,7 +243,7 @@ fn derive_table(channels: &[GeneratedChannel], facts: &[gofacts::Facts]) -> Resu
         }
         inputs.push((facts, modules));
     }
-    derive::derive(&inputs)
+    Ok(inputs)
 }
 
 fn generate_channel(version: &str, channel: &'static Channel) -> Result<GeneratedChannel> {
@@ -389,23 +290,20 @@ fn generate_channel(version: &str, channel: &'static Channel) -> Result<Generate
         channel,
         resources,
         common: Vec::new(),
+        constants: String::new(),
     })
 }
 
-/// Moves a channel's shared types into its `common` module, then adds the
-/// enum defaults, which are keyed by the consolidated names.
+/// Moves a channel's shared types into its `common` module, then adds a
+/// `Default` impl to each enum a struct holds outside an `Option`, which
+/// kopium can't derive. `defaults` holds the candidates, by consolidated name.
 fn consolidate_channel<'t>(
     generated: &mut GeneratedChannel,
     table: &'t Table,
+    defaults: &BTreeMap<String, BTreeSet<String>>,
     matched: &mut consolidate::Matched<'t>,
 ) -> Result<()> {
-    let channel = generated.channel;
-    let channel_name = channel.name;
-
-    let mut defaults = BTreeSet::new();
-    if let Some((name, _)) = channel.enum_defaults.iter().find(|(name, _)| !defaults.insert(name)) {
-        bail!("{channel_name}: enum default for {name} is listed twice");
-    }
+    let channel_name = generated.channel.name;
 
     // Root versions first, so a shared type takes its docs from one
     let mut modules = Vec::new();
@@ -429,13 +327,26 @@ fn consolidate_channel<'t>(
     let mut common = gen_common_prelude();
     common.extend(consolidated.common);
 
-    let mut unused: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
-    for module in &mut modules {
-        add_enum_defaults(&mut module.file.items, channel.enum_defaults, &mut unused);
+    let mut files: Vec<&mut Vec<syn::Item>> = modules.iter_mut().map(|module| &mut module.file.items).collect();
+    files.push(&mut common);
+    let mut needed = Vec::new();
+    for name in required_enums(&files) {
+        let default = match defaults
+            .get(&name)
+            .map(|values| values.iter().collect::<Vec<_>>())
+            .as_deref()
+        {
+            Some([default]) => (*default).clone(),
+            Some(values) if !values.is_empty() => {
+                let values = values.iter().map(|value| value.as_str()).collect::<Vec<_>>().join(", ");
+                bail!("{channel_name}: {name} needs a default, but its fields' Go facts disagree: {values}");
+            },
+            _ => bail!("{channel_name}: {name} needs a default, but the Go facts give none"),
+        };
+        needed.push((name, default));
     }
-    add_enum_defaults(&mut common, channel.enum_defaults, &mut unused);
-    if let Some(name) = unused.first() {
-        bail!("{channel_name}: enum default for {name} matches no generated enum");
+    for items in files {
+        add_enum_defaults(items, &needed)?;
     }
 
     generated.common = common;
@@ -448,6 +359,7 @@ fn write_channel(bundle: &str, generated: &GeneratedChannel) -> Result<()> {
         channel,
         resources,
         common,
+        constants,
     } = generated;
     let channel_name = channel.name;
     let dir = format!("{APIS_DIR}/{channel_name}");
@@ -488,7 +400,7 @@ fn write_channel(bundle: &str, generated: &GeneratedChannel) -> Result<()> {
         format!("{GENERATED_HEADER}{COMMON_DOC}{}", print_items(common)),
     )?;
     fs::write(format!("{dir}.rs"), gen_channel_module(channel))?;
-    fs::write(format!("{dir}/constants.rs"), gen_constants(channel.conditions))?;
+    fs::write(format!("{dir}/constants.rs"), constants)?;
     Ok(())
 }
 
@@ -792,34 +704,87 @@ fn gen_version_doc(bundle: &str, channel: &Channel, spec: &CrdSpec, v: &CrdVersi
     )
 }
 
-/// Adds a `Default` impl after each enum in `items` that kopium cannot derive
-/// one for, removing each matched entry from `unused`.
-fn add_enum_defaults(
-    items: &mut Vec<syn::Item>,
-    defaults: &[(&'static str, &str)],
-    unused: &mut BTreeSet<&'static str>,
-) {
-    for (name, default) in defaults {
+/// The enums that some struct holds outside an `Option` or a collection, so
+/// `#[derive(Default)]` on the struct needs a `Default` for the enum.
+fn required_enums(files: &[&mut Vec<syn::Item>]) -> BTreeSet<String> {
+    let enums: BTreeSet<String> = files
+        .iter()
+        .flat_map(|items| items.iter())
+        .filter_map(|item| match item {
+            syn::Item::Enum(item) => Some(item.ident.to_string()),
+            _ => None,
+        })
+        .collect();
+    let mut required = BTreeSet::new();
+    for item in files.iter().flat_map(|items| items.iter()) {
+        let syn::Item::Struct(item) = item else {
+            continue;
+        };
+        for field in &item.fields {
+            if let syn::Type::Path(path) = &field.ty
+                && let Some(last) = path.path.segments.last()
+                && last.arguments.is_none()
+                && enums.contains(&last.ident.to_string())
+            {
+                required.insert(last.ident.to_string());
+            }
+        }
+    }
+    required
+}
+
+/// Adds a `Default` impl after each enum in `items` that `defaults` names,
+/// returning the variant whose wire value is the default.
+fn add_enum_defaults(items: &mut Vec<syn::Item>, defaults: &[(String, String)]) -> Result<()> {
+    for (name, value) in defaults {
         let Some(at) = items
             .iter()
             .position(|item| matches!(item, syn::Item::Enum(item) if item.ident == name))
         else {
             continue;
         };
-        unused.remove(name);
+        let syn::Item::Enum(item) = &items[at] else {
+            unreachable!("found as an enum");
+        };
+        let variant = item
+            .variants
+            .iter()
+            .find(|variant| wire_value(variant) == *value)
+            .with_context(|| format!("{name} has no variant for its default {value}"))?
+            .ident
+            .clone();
         let name = syn::Ident::new(name, Span::call_site());
-        let default = syn::Ident::new(default, Span::call_site());
         items.insert(
             at + 1,
             syn::parse_quote! {
                 impl Default for #name {
                     fn default() -> Self {
-                        #name::#default
+                        #name::#variant
                     }
                 }
             },
         );
     }
+    Ok(())
+}
+
+/// An enum variant's value on the wire: its `serde(rename)`, or else its name.
+fn wire_value(variant: &syn::Variant) -> String {
+    for attr in variant.attrs.iter().filter(|attr| attr.path().is_ident("serde")) {
+        let mut rename = None;
+        let _ = attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("rename") {
+                rename = Some(meta.value()?.parse::<syn::LitStr>()?.value());
+            } else if meta.input.peek(syn::Token![=]) {
+                meta.value()?.parse::<syn::Expr>()?;
+            }
+            Ok(())
+        });
+        if let Some(rename) = rename {
+            return rename;
+        }
+    }
+    variant.ident.to_string()
 }
 
 // -----------------------------------------------------------------------------
@@ -944,28 +909,69 @@ fn gen_test_stub(resource: &str) -> String {
 // constants.rs generation
 // -----------------------------------------------------------------------------
 
-fn gen_constants(conditions: &[(&str, &[&str])]) -> String {
+/// Generates an enum for each upstream condition type and reason, such as
+/// `GatewayConditionType`, from its Go consts, for the API groups `groups`.
+fn gen_constants(facts: &gofacts::Facts, groups: &BTreeSet<&str>) -> Result<String> {
     let mut out = String::from(GENERATED_HEADER);
+    let packages = facts
+        .packages
+        .iter()
+        .filter(|package| package.group.as_deref().is_some_and(|group| groups.contains(group)));
+    for package in packages {
+        for ty in &package.types {
+            if !ty.name.ends_with("ConditionType") && !ty.name.ends_with("ConditionReason") {
+                continue;
+            }
+            let key = format!("{path}.{go}", path = package.path, go = ty.name);
+            let mut seen = BTreeSet::new();
+            let consts: Vec<_> = package
+                .consts
+                .iter()
+                .filter(|c| c.ty == key && seen.insert(c.value.as_str()))
+                .collect();
+            if consts.is_empty() {
+                continue;
+            }
+            let name = derive::rust_name(&ty.name);
+            let go = &ty.name;
 
-    for (name, variants) in conditions {
-        // Enum definition
-        write!(out, "\n#[derive(Debug, PartialEq, Eq)]\npub enum {name} {{\n").unwrap();
-        for v in *variants {
-            writeln!(out, "    {v},").unwrap();
+            out.push('\n');
+            write_doc(&mut out, "", &ty.doc);
+            writeln!(out, "///\n/// Upstream: `{go}`.").unwrap();
+            write!(out, "#[derive(Debug, PartialEq, Eq)]\npub enum {name} {{\n").unwrap();
+            for c in consts {
+                let value = &c.value;
+                if !value.chars().next().is_some_and(char::is_uppercase) || !value.chars().all(char::is_alphanumeric) {
+                    bail!("{go} value {value} isn't a Rust identifier");
+                }
+                write_doc(&mut out, "    ", &c.doc);
+                writeln!(out, "    {value},").unwrap();
+            }
+            out.push_str("}\n");
+
+            // Display impl
+            write!(
+                out,
+                "\nimpl std::fmt::Display for {name} {{\n    \
+                     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {{\n        \
+                         write!(f, \"{{:?}}\", self)\n    \
+                     }}\n\
+                 }}\n"
+            )
+            .unwrap();
         }
-        out.push_str("}\n");
-
-        // Display impl
-        write!(
-            out,
-            "\nimpl std::fmt::Display for {name} {{\n    \
-                 fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {{\n        \
-                     write!(f, \"{{:?}}\", self)\n    \
-                 }}\n\
-             }}\n"
-        )
-        .unwrap();
     }
+    Ok(out)
+}
 
-    out
+/// Writes a Go doc comment as Rust doc lines, indented by `indent`.
+fn write_doc(out: &mut String, indent: &str, doc: &str) {
+    for line in doc.lines() {
+        let line = line.trim_end();
+        if line.is_empty() {
+            writeln!(out, "{indent}///").unwrap();
+        } else {
+            writeln!(out, "{indent}/// {line}").unwrap();
+        }
+    }
 }

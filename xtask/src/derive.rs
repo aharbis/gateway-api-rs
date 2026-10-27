@@ -43,6 +43,8 @@ struct Site {
     go: Option<String>,
     /// The enum values the field itself sets, which can narrow its Go type's.
     field_enum: Vec<String>,
+    /// The field's `+kubebuilder:default`.
+    field_default: Option<String>,
 }
 
 /// One Go type's sites, merged across channels.
@@ -192,6 +194,55 @@ fn add_channel(
     Ok(())
 }
 
+/// The candidate `Default` of each enum in one channel, as wire values, by the
+/// enum's Rust name after consolidation. A field's `+kubebuilder:default` comes
+/// first; otherwise the first Go const of the enum's type, or else the first
+/// value the field allows. Upstream gives no default for a required enum, so
+/// these only make `#[derive(Default)]` possible on the structs that hold one.
+pub fn enum_defaults(
+    facts: &Facts,
+    modules: &[Module<'_>],
+    table: &Table,
+) -> Result<BTreeMap<String, BTreeSet<String>>> {
+    let index = Index::new(facts);
+    let renamed: BTreeMap<&str, &str> = table
+        .shared_types
+        .iter()
+        .flat_map(|entry| entry.kopium.iter().map(|kopium| (kopium.as_str(), entry.rust.as_str())))
+        .collect();
+    let mut defaults: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for module in modules {
+        let enums: BTreeSet<String> = module
+            .file
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                syn::Item::Enum(item) => Some(item.ident.to_string()),
+                _ => None,
+            })
+            .collect();
+        let mut sites = Vec::new();
+        pair_module(&index, module, &mut sites)?;
+        for site in sites.iter().filter(|site| enums.contains(&site.kopium)) {
+            let first_const = || {
+                let go = site.go.as_ref()?;
+                index.consts(go).first().map(|c| c.value.clone())
+            };
+            let default = site
+                .field_default
+                .as_ref()
+                .map(|default| default.trim_matches('"').to_string())
+                .or_else(first_const)
+                .or_else(|| site.field_enum.first().cloned());
+            if let Some(default) = default {
+                let name = renamed.get(site.kopium.as_str()).copied().unwrap_or(&site.kopium);
+                defaults.entry(name.to_string()).or_default().insert(default);
+            }
+        }
+    }
+    Ok(defaults)
+}
+
 /// Walks a kopium module from its spec and status, pairing each kopium type
 /// with the Go type of the field it was generated for.
 fn pair_module(index: &Index<'_>, module: &Module<'_>, sites: &mut Vec<Site>) -> Result<()> {
@@ -232,12 +283,12 @@ fn pair_module(index: &Index<'_>, module: &Module<'_>, sites: &mut Vec<Site>) ->
             continue;
         };
         if items.contains_key(&kopium) {
-            queue.push((kopium, index.resolve(go)?, Vec::new()));
+            queue.push((kopium, index.resolve(go)?, Vec::new(), None));
         }
     }
 
     let mut paired: BTreeMap<String, Option<String>> = BTreeMap::new();
-    while let Some((kopium, go, field_enum)) = queue.pop() {
+    while let Some((kopium, go, field_enum, field_default)) = queue.pop() {
         if let Some(seen) = paired.get(&kopium) {
             if *seen != go {
                 bail!("{kopium} is generated from both {seen:?} and {go:?}");
@@ -252,6 +303,7 @@ fn pair_module(index: &Index<'_>, module: &Module<'_>, sites: &mut Vec<Site>) ->
             kopium: kopium.clone(),
             go: go.clone(),
             field_enum,
+            field_default,
         });
 
         let (Some(go), syn::Item::Struct(item)) = (&go, items[&kopium]) else {
@@ -272,7 +324,7 @@ fn pair_module(index: &Index<'_>, module: &Module<'_>, sites: &mut Vec<Site>) ->
                 Some(named) => index.resolve(named)?,
                 None => None,
             };
-            queue.push((local, target, go_field.enum_values.clone()));
+            queue.push((local, target, go_field.enum_values.clone(), go_field.default.clone()));
         }
         if let Some(missing) = go_fields.keys().find(|json| !kopium_fields.contains(**json)) {
             bail!("Go {go}.{missing} has no field in {kopium}");

@@ -993,7 +993,7 @@ pub enum HttpRouteExternalAuthProtocol {
 
 impl Default for HttpRouteExternalAuthProtocol {
     fn default() -> Self {
-        HttpRouteExternalAuthProtocol::Http
+        HttpRouteExternalAuthProtocol::Grpc
     }
 }
 

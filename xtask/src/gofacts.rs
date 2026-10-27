@@ -32,6 +32,8 @@ pub struct Package {
     #[serde(default)]
     pub kinds: Vec<Kind>,
     pub types: Vec<Type>,
+    #[serde(default)]
+    pub consts: Vec<Const>,
 }
 
 /// A root type, such as `HTTPRoute`.
@@ -46,6 +48,8 @@ pub struct Kind {
 pub struct Type {
     pub name: String,
     pub file: String,
+    #[serde(default)]
+    pub doc: String,
     pub kind: TypeKind,
     #[serde(default)]
     pub alias: Option<TypeRef>,
@@ -74,6 +78,20 @@ pub struct Field {
     /// From the field's enum marker, after the channel's override.
     #[serde(default, rename = "enum")]
     pub enum_values: Vec<String>,
+    /// The raw value of the field's `+kubebuilder:default` marker.
+    #[serde(default)]
+    pub default: Option<String>,
+}
+
+/// A typed const, such as `GatewayConditionProgrammed`.
+#[derive(Deserialize)]
+pub struct Const {
+    /// Its named type's key.
+    #[serde(rename = "type")]
+    pub ty: String,
+    pub value: String,
+    #[serde(default)]
+    pub doc: String,
 }
 
 /// A type expression. Exactly one field is set.
@@ -182,6 +200,16 @@ impl<'f> Index<'f> {
                 None => return Ok(None),
             }
         }
+    }
+
+    /// The consts of a named type, in source order.
+    pub fn consts(&self, key: &str) -> Vec<&'f Const> {
+        self.facts
+            .packages
+            .iter()
+            .flat_map(|package| &package.consts)
+            .filter(|c| c.ty == key)
+            .collect()
     }
 
     /// The package for a CRD's group and API version.
