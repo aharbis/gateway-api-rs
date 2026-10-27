@@ -91,7 +91,7 @@ pub fn derive(channels: &[(&Facts, Vec<Module<'_>>)]) -> Result<Table> {
             uses.position,
             SharedType {
                 go: go_name,
-                rust: Some(rust_name(name)),
+                rust: rust_name(name),
                 placement,
                 kopium: uses.kopium.iter().cloned().collect(),
             },
@@ -101,7 +101,6 @@ pub fn derive(channels: &[(&Facts, Vec<Module<'_>>)]) -> Result<Table> {
 
     let table = Table {
         shared_types: shared_types.into_iter().map(|(_, entry)| entry).collect(),
-        distinct: Vec::new(),
         per_version: per_version
             .into_iter()
             .map(|((resource, version), types)| PerVersion {
@@ -397,74 +396,6 @@ fn split_initialisms(word: &str) -> Vec<&str> {
         rest = &rest[initialism.len()..];
     }
     parts
-}
-
-/// The differences between a derived table and the hand-kept one, one line
-/// each.
-pub fn compare(derived: &Table, hand: &Table) -> Vec<String> {
-    let mut diffs = Vec::new();
-    let by_go = |table: &Table| -> BTreeMap<String, SharedType> {
-        table
-            .shared_types
-            .iter()
-            .map(|entry| (entry.go.clone(), entry.clone()))
-            .collect()
-    };
-    let (derived_types, hand_types) = (by_go(derived), by_go(hand));
-    for (go, hand) in &hand_types {
-        let Some(derived) = derived_types.get(go) else {
-            diffs.push(format!("shared type {go}: missing from the derived table"));
-            continue;
-        };
-        if derived.placement != hand.placement {
-            let (derived, hand) = (&derived.placement, &hand.placement);
-            diffs.push(format!("shared type {go}: placed in {derived:?}, not {hand:?}"));
-        }
-        if derived.rust_name() != hand.rust_name() {
-            let (derived, hand) = (derived.rust_name(), hand.rust_name());
-            diffs.push(format!("shared type {go}: named {derived}, not {hand}"));
-        }
-        let (derived, hand): (BTreeSet<_>, BTreeSet<_>) =
-            (derived.kopium.iter().collect(), hand.kopium.iter().collect());
-        for name in hand.difference(&derived) {
-            diffs.push(format!(
-                "shared type {go}: kopium name {name} missing from the derived table"
-            ));
-        }
-        for name in derived.difference(&hand) {
-            diffs.push(format!(
-                "shared type {go}: kopium name {name} only in the derived table"
-            ));
-        }
-    }
-    for go in derived_types.keys().filter(|go| !hand_types.contains_key(*go)) {
-        diffs.push(format!("shared type {go}: only in the derived table"));
-    }
-
-    let per_version = |table: &Table| -> BTreeSet<(String, String, String)> {
-        table
-            .per_version
-            .iter()
-            .flat_map(|entry| {
-                entry
-                    .types
-                    .iter()
-                    .map(|name| (entry.resource.clone(), entry.version.clone(), name.clone()))
-            })
-            .collect()
-    };
-    let (derived, hand) = (per_version(derived), per_version(hand));
-    for (resource, version, name) in hand.difference(&derived) {
-        diffs.push(format!(
-            "per_version {resource} {version}: {name} missing from the derived table"
-        ));
-    }
-    for (resource, version, name) in derived.difference(&hand) {
-        diffs.push(format!(
-            "per_version {resource} {version}: {name} only in the derived table"
-        ));
-    }
-    diffs
 }
 
 #[cfg(test)]

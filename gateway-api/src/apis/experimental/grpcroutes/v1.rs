@@ -395,6 +395,28 @@ pub struct GrpcRouteRulesBackendRefs {
 /// authentication strategies, rate-limiting, and traffic shaping. API
 /// guarantee/conformance is defined based on the type of the filter.
 ///
+/// Upstream: `GRPCRouteFilterType`
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
+pub enum GrpcRouteFilterType {
+    ResponseHeaderModifier,
+    RequestHeaderModifier,
+    RequestMirror,
+    ExtensionRef,
+}
+
+impl Default for GrpcRouteFilterType {
+    fn default() -> Self {
+        GrpcRouteFilterType::RequestHeaderModifier
+    }
+}
+
+/// GRPCRouteFilter defines processing steps that must be completed during the
+/// request or response lifecycle. GRPCRouteFilters are meant as an extension
+/// point to express processing that may be done in Gateway implementations. Some
+/// examples include request or response modification, implementing
+/// authentication strategies, rate-limiting, and traffic shaping. API
+/// guarantee/conformance is defined based on the type of the filter.
+///
 /// Upstream: `GRPCRouteFilter`
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, Default, PartialEq)]
 pub struct GrpcRouteFilter {
@@ -457,28 +479,6 @@ pub struct GrpcRouteFilter {
     /// that filter MUST receive a HTTP error response.
     #[serde(rename = "type")]
     pub r#type: GrpcRouteFilterType,
-}
-
-/// GRPCRouteFilter defines processing steps that must be completed during the
-/// request or response lifecycle. GRPCRouteFilters are meant as an extension
-/// point to express processing that may be done in Gateway implementations. Some
-/// examples include request or response modification, implementing
-/// authentication strategies, rate-limiting, and traffic shaping. API
-/// guarantee/conformance is defined based on the type of the filter.
-///
-/// Upstream: `GRPCRouteFilterType`
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
-pub enum GrpcRouteFilterType {
-    ResponseHeaderModifier,
-    RequestHeaderModifier,
-    RequestMirror,
-    ExtensionRef,
-}
-
-impl Default for GrpcRouteFilterType {
-    fn default() -> Self {
-        GrpcRouteFilterType::RequestHeaderModifier
-    }
 }
 
 #[doc(hidden)]

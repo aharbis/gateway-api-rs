@@ -298,43 +298,10 @@ fn generate(version: &str) -> Result<()> {
     }
 
     let facts = gofacts::generate(version)?;
-    let derived = derive_table(&channels, &facts)?;
-    let table = Table::load()?;
-    let diffs = derive::compare(&derived, &table);
-    if diffs.is_empty() {
-        eprintln!("the derived table matches xtask/shared-types.yaml");
-    } else {
-        eprintln!("the derived table differs from xtask/shared-types.yaml:");
-        for diff in &diffs {
-            eprintln!("  {diff}");
-        }
-    }
-
+    let table = derive_table(&channels, &facts)?;
     let mut matched = consolidate::Matched::default();
-    let mut matched_distinct = BTreeSet::new();
     for channel in &mut channels {
-        consolidate_channel(channel, &table, &mut matched, &mut matched_distinct)?;
-    }
-    for entry in &table.shared_types {
-        if let Some(name) = entry.kopium.iter().find(|name| !matched.kopium.contains(name.as_str())) {
-            bail!("shared type {go}: {name} matches no generated type", go = entry.go);
-        }
-    }
-    for (index, entry) in table.per_version.iter().enumerate() {
-        if let Some(name) = entry
-            .types
-            .iter()
-            .find(|name| !matched.per_version.contains(&(index, name.as_str())))
-        {
-            let (resource, version) = (&entry.resource, &entry.version);
-            bail!("per_version {resource} {version}: {name} matches no generated type");
-        }
-    }
-    for (index, group) in table.distinct.iter().enumerate() {
-        if !matched_distinct.contains(&index) {
-            let group = group.join(", ");
-            bail!("distinct group no longer shares a shape in any channel: {group}");
-        }
+        consolidate_channel(channel, &table, &mut matched)?;
     }
 
     for channel in &channels {
@@ -425,14 +392,12 @@ fn generate_channel(version: &str, channel: &'static Channel) -> Result<Generate
     })
 }
 
-/// Moves a channel's shared types into its `common` module, checks that no
-/// unclassified duplicates remain, then adds the enum defaults, which are
-/// keyed by the consolidated names.
+/// Moves a channel's shared types into its `common` module, then adds the
+/// enum defaults, which are keyed by the consolidated names.
 fn consolidate_channel<'t>(
     generated: &mut GeneratedChannel,
     table: &'t Table,
     matched: &mut consolidate::Matched<'t>,
-    matched_distinct: &mut BTreeSet<usize>,
 ) -> Result<()> {
     let channel = generated.channel;
     let channel_name = channel.name;
@@ -461,13 +426,8 @@ fn consolidate_channel<'t>(
 
     let consolidated = consolidate::consolidate(channel_name, table, &mut modules, matched)
         .with_context(|| format!("{channel_name}: consolidating shared types"))?;
-    let named = consolidated.names;
     let mut common = gen_common_prelude();
     common.extend(consolidated.common);
-
-    let mut files: Vec<&[syn::Item]> = modules.iter().map(|module| &module.file.items[..]).collect();
-    files.push(&common);
-    consolidate::check_duplicates(channel_name, &files, &named, &table.distinct, matched_distinct)?;
 
     let mut unused: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
     for module in &mut modules {

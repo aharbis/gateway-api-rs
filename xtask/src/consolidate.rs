@@ -1,5 +1,5 @@
 //! Consolidates the types kopium generates once per path into the shared
-//! types the table names, and guards against duplicates nobody classified.
+//! types the table names.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -55,8 +55,6 @@ pub struct Matched<'t> {
 pub struct Consolidated {
     /// The `common` module's imports and types.
     pub common: Vec<syn::Item>,
-    /// The new name of every type consolidation replaced.
-    pub names: BTreeSet<String>,
 }
 
 /// Where kopium generated one instance of a type.
@@ -181,10 +179,7 @@ pub fn consolidate<'t>(
     reexport_root_types(modules, &items, &renames, per_version, &mut matched.per_version)?;
     replace_sites(modules, &renames, defs, &paths)?;
     rewrite_module(&mut common, Some(&Placement::Common), &renames, &paths)?;
-    Ok(Consolidated {
-        common,
-        names: renames.values().map(|rename| rename.name.clone()).collect(),
-    })
+    Ok(Consolidated { common })
 }
 
 /// Maps the name of each struct and enum in `items` to its index.
@@ -228,7 +223,7 @@ fn plan_renames<'t>(
             }
             matched.insert(kopium);
             let rename = Rename {
-                name: entry.rust_name(),
+                name: entry.rust.clone(),
                 placement: entry.placement.clone(),
                 entry: Some(entry),
                 orphan_of: None,
@@ -648,7 +643,7 @@ fn emit_types(
         out: Vec::new(),
     };
     for entry in table.iter().filter(|entry| entry.placement == *placement) {
-        let name = entry.rust_name();
+        let name = entry.rust.clone();
         if groups.contains_key(name.as_str()) {
             emitter.emit(&name, Some(entry));
         }
@@ -735,11 +730,9 @@ fn reexport_root_types<'t>(
                 if shapers[index].shape_of(name) != shapers[root].shape_of(name) {
                     let root_module = &modules[root];
                     bail!(
-                        "{module}: {name} differs from {root}'s, so it isn't a Go alias of it. If upstream declares \
-                         it in {version}, add it to per_version in xtask/shared-types.yaml.\n{diff}",
+                        "{module}: {name} differs from {root}'s, but Go declares it an alias of it.\n{diff}",
                         module = module.name(),
                         root = root_module.version,
-                        version = module.version,
                         diff = diff_items(&root_module.file.items[items[root][name]], &module.file.items[item]),
                     );
                 }
@@ -923,54 +916,6 @@ fn rewrite_status(
     Ok(())
 }
 
-/// Fails on any group of shape-identical types in a channel that `distinct`
-/// doesn't list. Types `named` names are compared by name, not shape. Adds
-/// the index of each `distinct` group that matched to `matched`.
-pub fn check_duplicates(
-    channel: &str,
-    files: &[&[syn::Item]],
-    named: &BTreeSet<String>,
-    distinct: &[Vec<String>],
-    matched: &mut BTreeSet<usize>,
-) -> Result<()> {
-    let named = |name: &str| named.contains(name).then(|| name.to_string());
-    let mut groups: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for file in files {
-        let items = item_indices(file);
-        let mut shaper = Shaper::new(file, &items, &named);
-        for name in items.keys() {
-            groups.entry(shaper.shape_of(name)).or_default().insert(name.clone());
-        }
-    }
-    let generated: BTreeSet<&str> = groups.values().flatten().map(String::as_str).collect();
-
-    let mut unclassified = Vec::new();
-    for names in groups.values().filter(|names| names.len() > 1) {
-        let found = distinct.iter().position(|group| {
-            let group: BTreeSet<&str> = group
-                .iter()
-                .map(String::as_str)
-                .filter(|name| generated.contains(name))
-                .collect();
-            group.len() == names.len() && names.iter().all(|name| group.contains(name.as_str()))
-        });
-        match found {
-            Some(index) => {
-                matched.insert(index);
-            },
-            None => unclassified.push(names.iter().cloned().collect::<Vec<_>>().join(", ")),
-        }
-    }
-    if !unclassified.is_empty() {
-        let groups = unclassified.join("\n  ");
-        bail!(
-            "{channel}: these types share a shape, but neither shared_types nor distinct in \
-             xtask/shared-types.yaml classifies them:\n  {groups}"
-        );
-    }
-    Ok(())
-}
-
 pub fn ident(name: &str) -> syn::Ident {
     syn::Ident::new(name, Span::call_site())
 }
@@ -988,7 +933,7 @@ mod tests {
     fn shared_type(go: &str, placement: Placement, kopium: &[&str]) -> SharedType {
         SharedType {
             go: go.into(),
-            rust: None,
+            rust: crate::derive::rust_name(go),
             placement,
             kopium: kopium.iter().map(ToString::to_string).collect(),
         }
@@ -1063,7 +1008,6 @@ mod tests {
     fn run_with(shared_types: &[SharedType], modules: Vec<Module<'_>>) -> Result<(Consolidated, BTreeSet<String>)> {
         let table = Table {
             shared_types: shared_types.to_vec(),
-            distinct: Vec::new(),
             per_version: Vec::new(),
         };
         run_table(&table, modules)
@@ -1179,50 +1123,6 @@ mod tests {
         assert_eq!(error, "Kind, nested under AParent, doesn't start with its name");
     }
 
-    fn check(files: &[syn::File], distinct: &[&[&str]]) -> Result<BTreeSet<usize>> {
-        let files: Vec<&[syn::Item]> = files.iter().map(|file| &file.items[..]).collect();
-        let distinct: Vec<Vec<String>> = distinct
-            .iter()
-            .map(|group| group.iter().map(ToString::to_string).collect())
-            .collect();
-        let mut matched = BTreeSet::new();
-        check_duplicates("standard", &files, &BTreeSet::new(), &distinct, &mut matched)?;
-        Ok(matched)
-    }
-
-    #[test]
-    fn duplicate_guard_compares_nested_types_by_shape() {
-        // The `kind` fields name different enums with one shape
-        let files = [module_a(), module_b()];
-        let error = check(&files, &[]).unwrap_err().to_string();
-        let groups: BTreeSet<&str> = error.lines().skip(1).map(str::trim).collect();
-        // `ASpec` refers to one `AParent`, `BSpec` to a list of them
-        assert_eq!(
-            groups,
-            BTreeSet::from(["AParent, BParents", "AParentKind, BParentsKind"])
-        );
-    }
-
-    #[test]
-    fn duplicate_guard_accepts_distinct_groups() {
-        let files = [module_a(), module_b()];
-        let distinct: &[&[&str]] = &[
-            &["AParent", "BParents", "CParent"],
-            &["AParentKind", "BParentsKind"],
-            &["Stale", "Group"],
-        ];
-        assert_eq!(check(&files, distinct).unwrap(), BTreeSet::from([0, 1]));
-    }
-
-    #[test]
-    fn duplicate_guard_needs_the_whole_group() {
-        let files = [module_a(), module_b()];
-        let distinct: &[&[&str]] = &[&["AParent", "BParents", "ASpec"], &["AParentKind", "BParentsKind"]];
-        let error = check(&files, distinct).unwrap_err().to_string();
-        let groups: Vec<&str> = error.lines().skip(1).map(str::trim).collect();
-        assert_eq!(groups, ["AParent, BParents"]);
-    }
-
     fn module_with_filters() -> syn::File {
         syn::parse_quote! {
             use self::prelude::*;
@@ -1269,10 +1169,6 @@ mod tests {
         ];
         let (consolidated, _) = run_with(&table, modules).unwrap();
         assert!(consolidated.common.is_empty());
-        assert_eq!(
-            consolidated.names,
-            BTreeSet::from(["Filter".into(), "FilterKind".into()])
-        );
 
         // The root version defines the types where the first of them was,
         // and refers to them by name
@@ -1347,7 +1243,6 @@ mod tests {
         }
         let table = Table {
             shared_types: Vec::new(),
-            distinct: Vec::new(),
             per_version: vec![PerVersion {
                 resource: "a".into(),
                 version: "v1beta1".into(),
@@ -1395,7 +1290,7 @@ mod tests {
             .expect("consolidation should fail")
             .to_string();
         assert!(
-            error.starts_with("a v1beta1: ARules differs from v1's, so it isn't a Go alias of it."),
+            error.starts_with("a v1beta1: ARules differs from v1's, but Go declares it an alias of it."),
             "{error}"
         );
         assert!(error.contains("+     pub port: i32,"), "{error}");
@@ -1446,7 +1341,7 @@ mod tests {
     #[test]
     fn replaces_k8s_types_with_k8s_openapis() {
         let k8s = |go: &str, rust: &str, kopium| SharedType {
-            rust: Some(rust.into()),
+            rust: rust.into(),
             ..shared_type(go, Placement::K8s, kopium)
         };
         let table = [
