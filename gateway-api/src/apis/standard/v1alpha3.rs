@@ -17,7 +17,7 @@ use crate::apis::standard::v1::{
     ParentReference, PolicyStatus, TlsRouteRule, TlsRouteStatus,
 };
 pub use crate::apis::standard::v1::{BackendRef, CommonRouteSpec, Hostname, RouteStatus, SectionName};
-/// BackendTLSPolicySpec defines the desired state of BackendTLSPolicy.
+/// [`BackendTlsPolicySpec`] defines the desired state of BackendTLSPolicy.
 ///
 /// Support: Extended
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
@@ -34,7 +34,7 @@ pub use crate::apis::standard::v1::{BackendRef, CommonRouteSpec, Hostname, Route
 #[kube(category = "gateway-api")]
 #[kube(derive = "PartialEq")]
 pub struct BackendTlsPolicySpec {
-    /// TargetRefs identifies an API object to apply the policy to.
+    /// `target_refs` identifies an API object to apply the policy to.
     /// Note that this config applies to the entire referenced resource
     /// by default, but this default may change in the future to provide
     /// a more granular application of the policy.
@@ -93,9 +93,9 @@ pub struct BackendTlsPolicySpec {
     /// a more granular application of the policy.
     #[serde(rename = "targetRefs")]
     pub target_refs: Vec<LocalPolicyTargetReferenceWithSectionName>,
-    /// Validation contains backend TLS validation configuration.
+    /// `validation` contains backend TLS validation configuration.
     pub validation: BackendTlsPolicyValidation,
-    /// Options are a list of key/value pairs to enable extended TLS
+    /// `options` are a list of key/value pairs to enable extended TLS
     /// configuration for each implementation. For example, configuring the
     /// minimum TLS version or supported cipher suites.
     ///
@@ -121,7 +121,7 @@ impl BackendTlsPolicySpec {
         }
     }
 }
-/// TLSRouteSpec defines the expected behavior of a TLSRoute.
+/// [`TlsRouteSpec`] defines the expected behavior of a TLSRoute.
 /// A TLSRoute MUST be attached to a Listener of protocol TLS.
 /// Core: The listener CAN be of type Passthrough
 /// Extended: The listener CAN be of type Terminate
@@ -142,7 +142,7 @@ impl BackendTlsPolicySpec {
     doc = "The TLSRoute resource is similar to TCPRoute, but can be configured\nto match against TLS-specific metadata. This allows more flexibility\nin matching streams for a given TLS listener.\n\nIf you need to forward traffic to a single target for a TLS listener, you\ncould choose to use a TCPRoute with a TLS listener."
 )]
 pub struct TlsRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -194,7 +194,7 @@ pub struct TlsRouteSpec {
     /// generic way to enable other kinds of cross-namespace reference.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// Hostnames defines a set of SNI hostnames that should match against the
+    /// `hostnames` defines a set of SNI hostnames that should match against the
     /// SNI attribute of TLS ClientHello message in TLS handshake. This matches
     /// the RFC 1123 definition of a hostname with 2 notable exceptions:
     ///
@@ -202,7 +202,7 @@ pub struct TlsRouteSpec {
     /// 2. A hostname may be prefixed with a wildcard label (`*.`). The wildcard
     ///    label must appear by itself as the first label.
     pub hostnames: Vec<Hostname>,
-    /// Rules are a list of actions.
+    /// `rules` are a list of actions.
     pub rules: Vec<TlsRouteRule>,
 }
 impl TlsRouteSpec {

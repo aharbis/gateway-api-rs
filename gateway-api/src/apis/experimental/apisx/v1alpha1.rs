@@ -16,22 +16,22 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition;
 
 pub use crate::apis::experimental::v1::{Duration, LocalPolicyTargetReference, PolicyStatus, SessionPersistence};
 use crate::apis::experimental::v1::{GatewayController, ParametersReference, SupportedFeature};
-/// RequestRate expresses a rate of requests over a given period of time.
+/// [`RequestRate`] expresses a rate of requests over a given period of time.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct RequestRate {
-    /// Count specifies the number of requests per time interval.
+    /// `count` specifies the number of requests per time interval.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub count: Option<i64>,
-    /// Interval specifies the divisor of the rate of requests, the amount of
+    /// `interval` specifies the divisor of the rate of requests, the amount of
     /// time during which the given count of requests occur.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval: Option<Duration>,
 }
-/// BackendTrafficPolicySpec define the desired state of BackendTrafficPolicy
+/// [`BackendTrafficPolicySpec`] define the desired state of BackendTrafficPolicy
 /// Note: there is no Override or Default policy configuration.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
@@ -49,7 +49,7 @@ pub struct RequestRate {
 #[kube(derive = "PartialEq")]
 #[kube(doc = "XBackendTrafficPolicy defines the configuration for how traffic to a\ntarget backend should be handled.")]
 pub struct BackendTrafficPolicySpec {
-    /// TargetRefs identifies API object(s) to apply this policy to.
+    /// `target_refs` identifies API object(s) to apply this policy to.
     /// Currently, Backends (A grouping of like endpoints such as Service,
     /// ServiceImport, or any implementation-specific backendRef) are the only
     /// valid API target references.
@@ -58,7 +58,7 @@ pub struct BackendTrafficPolicySpec {
     /// Service.
     #[serde(rename = "targetRefs")]
     pub target_refs: Vec<LocalPolicyTargetReference>,
-    /// RetryConstraint defines the configuration for when to allow or prevent
+    /// `retry_constraint` defines the configuration for when to allow or prevent
     /// further retries to a target backend, by dynamically calculating a 'retry
     /// budget'. This budget is calculated based on the percentage of incoming
     /// traffic composed of retries over a given time interval. Once the budget
@@ -89,7 +89,7 @@ pub struct BackendTrafficPolicySpec {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "retryConstraint")]
     pub retry_constraint: Option<RetryConstraint>,
-    /// SessionPersistence defines and configures session persistence
+    /// `session_persistence` defines and configures session persistence
     /// for the backend.
     ///
     /// Support: Extended
@@ -106,15 +106,15 @@ impl BackendTrafficPolicySpec {
         }
     }
 }
-/// RetryConstraint defines the configuration for when to retry a request.
+/// [`RetryConstraint`] defines the configuration for when to retry a request.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct RetryConstraint {
-    /// Budget holds the details of the retry budget configuration.
+    /// `budget` holds the details of the retry budget configuration.
     ///
     /// Default: `{percent: 20, interval: "10s"}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub budget: Option<BudgetDetails>,
-    /// MinRetryRate defines the minimum rate of retries that will be allowable
+    /// `min_retry_rate` defines the minimum rate of retries that will be allowable
     /// over a specified duration of time.
     ///
     /// The effective overall minimum rate of retries targeting the backend
@@ -131,12 +131,12 @@ pub struct RetryConstraint {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "minRetryRate")]
     pub min_retry_rate: Option<RequestRate>,
 }
-/// BudgetDetails specifies the details of the budget configuration, like
+/// [`BudgetDetails`] specifies the details of the budget configuration, like
 /// the percentage of requests in the budget, and the interval between
 /// checks.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct BudgetDetails {
-    /// Percent defines the maximum percentage of active requests that may
+    /// `percent` defines the maximum percentage of active requests that may
     /// be made up of retries.
     ///
     /// Support: Extended
@@ -144,7 +144,7 @@ pub struct BudgetDetails {
     /// Default: `20`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub percent: Option<i64>,
-    /// Interval defines the duration in which requests will be considered
+    /// `interval` defines the duration in which requests will be considered
     /// for calculating the budget for retries.
     ///
     /// Support: Extended
@@ -153,7 +153,7 @@ pub struct BudgetDetails {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interval: Option<Duration>,
 }
-/// MeshSpec defines the desired state of an XMesh.
+/// [`MeshSpec`] defines the desired state of an XMesh.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.x-k8s.io",
@@ -174,7 +174,7 @@ pub struct BudgetDetails {
 #[kube(derive = "PartialEq")]
 #[kube(doc = "XMesh defines mesh-wide characteristics of a GAMMA-compliant service mesh.")]
 pub struct MeshSpec {
-    /// ControllerName is the name of a controller that is managing Gateway API
+    /// `controller_name` is the name of a controller that is managing Gateway API
     /// resources for mesh traffic management. The value of this field MUST be a
     /// domain prefixed path.
     ///
@@ -185,7 +185,7 @@ pub struct MeshSpec {
     /// Support: Core
     #[serde(rename = "controllerName")]
     pub controller_name: GatewayController,
-    /// ParametersRef is an optional reference to a resource that contains
+    /// `parameters_ref` is an optional reference to a resource that contains
     /// implementation-specific configuration for this Mesh. If no
     /// implementation-specific parameters are needed, this field MUST be
     /// omitted.
@@ -202,7 +202,7 @@ pub struct MeshSpec {
     /// Support: Implementation-specific
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parametersRef")]
     pub parameters_ref: Option<ParametersReference>,
-    /// Description optionally provides a human-readable description of a Mesh.
+    /// `description` optionally provides a human-readable description of a Mesh.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -216,7 +216,7 @@ impl MeshSpec {
         }
     }
 }
-/// MeshConditionType is the type for status conditions on Mesh resources.
+/// [`MeshConditionType`] is the type for status conditions on Mesh resources.
 /// This type should be used with the MeshStatus.Conditions field.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -328,7 +328,7 @@ impl schemars::JsonSchema for MeshConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// MeshConditionReason defines the set of reasons that explain why a
+/// [`MeshConditionReason`] defines the set of reasons that explain why a
 /// particular Mesh condition type has been raised.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -438,10 +438,10 @@ impl schemars::JsonSchema for MeshConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// MeshStatus is the current status for the Mesh.
+/// [`MeshStatus`] is the current status for the Mesh.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct MeshStatus {
-    /// Conditions is the current status from the controller for
+    /// `conditions` is the current status from the controller for
     /// this Mesh.
     ///
     /// Controllers should prefer to publish conditions using values
@@ -450,7 +450,7 @@ pub struct MeshStatus {
     /// Default: `{{type: "Accepted", status: "Unknown", reason:"Pending", message:"Waiting for controller", lastTransitionTime: "1970-01-01T00:00:00Z"},{type: "Programmed", status: "Unknown", reason:"Pending", message:"Waiting for controller", lastTransitionTime: "1970-01-01T00:00:00Z"}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conditions: Option<Vec<Condition>>,
-    /// SupportedFeatures is the set of features the Mesh support.
+    /// `supported_features` is the set of features the Mesh support.
     /// It MUST be sorted in ascending alphabetical order by the Name key.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedFeatures")]
     pub supported_features: Option<Vec<SupportedFeature>>,

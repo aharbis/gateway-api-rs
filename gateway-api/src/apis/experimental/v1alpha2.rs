@@ -28,11 +28,11 @@ pub use crate::apis::experimental::v1::{
 };
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct LocalPolicyTargetReference {
-    /// Group is the group of the target resource.
+    /// `group` is the group of the target resource.
     pub group: Group,
-    /// Kind is kind of the target resource.
+    /// `kind` is kind of the target resource.
     pub kind: Kind,
-    /// Name is the name of the target resource.
+    /// `name` is the name of the target resource.
     pub name: ObjectName,
 }
 impl LocalPolicyTargetReference {
@@ -47,13 +47,13 @@ impl LocalPolicyTargetReference {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct NamespacedPolicyTargetReference {
-    /// Group is the group of the target resource.
+    /// `group` is the group of the target resource.
     pub group: Group,
-    /// Kind is kind of the target resource.
+    /// `kind` is kind of the target resource.
     pub kind: Kind,
-    /// Name is the name of the target resource.
+    /// `name` is the name of the target resource.
     pub name: ObjectName,
-    /// Namespace is the namespace of the referent. When unspecified, the local
+    /// `namespace` is the namespace of the referent. When unspecified, the local
     /// namespace is inferred. Even when policy targets a resource in a different
     /// namespace, it MUST only apply to traffic originating from the same
     /// namespace as the policy.
@@ -73,13 +73,13 @@ impl NamespacedPolicyTargetReference {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct LocalPolicyTargetReferenceWithSectionName {
-    /// Group is the group of the target resource.
+    /// `group` is the group of the target resource.
     pub group: Group,
-    /// Kind is kind of the target resource.
+    /// `kind` is kind of the target resource.
     pub kind: Kind,
-    /// Name is the name of the target resource.
+    /// `name` is the name of the target resource.
     pub name: ObjectName,
-    /// SectionName is the name of a section within the target resource. When
+    /// `section_name` is the name of a section within the target resource. When
     /// unspecified, this targetRef targets the entire resource. In the following
     /// resources, SectionName is interpreted as the following:
     ///
@@ -108,11 +108,11 @@ pub type PolicyConditionType = String;
 pub type PolicyConditionReason = String;
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct PolicyAncestorStatus {
-    /// AncestorRef corresponds with a ParentRef in the spec that this
+    /// `ancestor_ref` corresponds with a ParentRef in the spec that this
     /// PolicyAncestorStatus struct describes the status of.
     #[serde(rename = "ancestorRef")]
     pub ancestor_ref: ParentReference,
-    /// ControllerName is a domain/path string that indicates the name of the
+    /// `controller_name` is a domain/path string that indicates the name of the
     /// controller that wrote this status. This corresponds with the
     /// controllerName field on GatewayClass.
     ///
@@ -127,7 +127,7 @@ pub struct PolicyAncestorStatus {
     /// longer necessary.
     #[serde(rename = "controllerName")]
     pub controller_name: GatewayController,
-    /// Conditions describes the status of the Policy with respect to the given Ancestor.
+    /// `conditions` describes the status of the Policy with respect to the given Ancestor.
     pub conditions: Vec<Condition>,
 }
 impl PolicyAncestorStatus {
@@ -146,7 +146,7 @@ impl PolicyAncestorStatus {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct PolicyStatus {
-    /// Ancestors is a list of ancestor resources (usually Gateways) that are
+    /// `ancestors` is a list of ancestor resources (usually Gateways) that are
     /// associated with the policy, and the status of the policy with respect to
     /// each ancestor. When this policy attaches to a parent, the controller that
     /// manages the parent and the ancestors MUST add an entry to this list when
@@ -185,7 +185,7 @@ impl PolicyStatus {
         }
     }
 }
-/// TCPRouteSpec defines the desired state of TCPRoute
+/// [`TcpRouteSpec`] defines the desired state of TCPRoute
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.k8s.io",
@@ -203,7 +203,7 @@ impl PolicyStatus {
     doc = "TCPRoute provides a way to route TCP requests. When combined with a Gateway\nlistener, it can be used to forward connections on the port specified by the\nlistener to a set of backends specified by the TCPRoute."
 )]
 pub struct TcpRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -265,7 +265,7 @@ pub struct TcpRouteSpec {
     /// ParentRef of the Route.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// UseDefaultGateways indicates the default Gateway scope to use for this
+    /// `use_default_gateways` indicates the default Gateway scope to use for this
     /// Route. If unset (the default) or set to None, the Route will not be
     /// attached to any default Gateway; if set, it will be attached to any
     /// default Gateway supporting the named scope, subject to the usual rules
@@ -279,7 +279,7 @@ pub struct TcpRouteSpec {
     /// certainly not use a default Gateway.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "useDefaultGateways")]
     pub use_default_gateways: Option<GatewayDefaultScope>,
-    /// Rules are a list of TCP matchers and actions.
+    /// `rules` are a list of TCP matchers and actions.
     pub rules: Vec<TcpRouteRule>,
 }
 impl TcpRouteSpec {
@@ -292,10 +292,10 @@ impl TcpRouteSpec {
         }
     }
 }
-/// TCPRouteStatus defines the observed state of TCPRoute
+/// [`TcpRouteStatus`] defines the observed state of TCPRoute
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct TcpRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -319,15 +319,15 @@ impl TcpRouteStatus {
         }
     }
 }
-/// TCPRouteRule is the configuration for a given rule.
+/// [`TcpRouteRule`] is the configuration for a given rule.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct TcpRouteRule {
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
+    /// `name` is the name of the route rule. This name MUST be unique within a Route if it is set.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<SectionName>,
-    /// BackendRefs defines the backend(s) where matching requests should be
+    /// `backend_refs` defines the backend(s) where matching requests should be
     /// sent. If unspecified or invalid (refers to a nonexistent resource or a
     /// Service with no endpoints), the underlying implementation MUST actively
     /// reject connection attempts to this backend. Connection rejections must
@@ -353,7 +353,7 @@ impl TcpRouteRule {
         }
     }
 }
-/// TLSRouteSpec defines the desired state of a TLSRoute resource.
+/// [`TlsRouteSpec`] defines the desired state of a TLSRoute resource.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.k8s.io",
@@ -371,7 +371,7 @@ impl TcpRouteRule {
     doc = "The TLSRoute resource is similar to TCPRoute, but can be configured\nto match against TLS-specific metadata. This allows more flexibility\nin matching streams for a given TLS listener."
 )]
 pub struct TlsRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -433,7 +433,7 @@ pub struct TlsRouteSpec {
     /// ParentRef of the Route.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// UseDefaultGateways indicates the default Gateway scope to use for this
+    /// `use_default_gateways` indicates the default Gateway scope to use for this
     /// Route. If unset (the default) or set to None, the Route will not be
     /// attached to any default Gateway; if set, it will be attached to any
     /// default Gateway supporting the named scope, subject to the usual rules
@@ -447,7 +447,7 @@ pub struct TlsRouteSpec {
     /// certainly not use a default Gateway.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "useDefaultGateways")]
     pub use_default_gateways: Option<GatewayDefaultScope>,
-    /// Hostnames defines a set of SNI names that should match against the
+    /// `hostnames` defines a set of SNI names that should match against the
     /// SNI attribute of TLS ClientHello message in TLS handshake. This matches
     /// the RFC 1123 definition of a hostname with 2 notable exceptions:
     ///
@@ -482,7 +482,7 @@ pub struct TlsRouteSpec {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostnames: Option<Vec<Hostname>>,
-    /// Rules are a list of TLS matchers and actions.
+    /// `rules` are a list of TLS matchers and actions.
     pub rules: Vec<TlsRouteRule>,
 }
 impl TlsRouteSpec {
@@ -496,10 +496,10 @@ impl TlsRouteSpec {
         }
     }
 }
-/// TLSRouteStatus defines the observed state of TLSRoute
+/// [`TlsRouteStatus`] defines the observed state of TLSRoute
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct TlsRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -523,13 +523,13 @@ impl TlsRouteStatus {
         }
     }
 }
-/// TLSRouteRule is the configuration for a given rule.
+/// [`TlsRouteRule`] is the configuration for a given rule.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct TlsRouteRule {
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
+    /// `name` is the name of the route rule. This name MUST be unique within a Route if it is set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<SectionName>,
-    /// BackendRefs defines the backend(s) where matching requests should be
+    /// `backend_refs` defines the backend(s) where matching requests should be
     /// sent. If unspecified or invalid (refers to a nonexistent resource or
     /// a Service with no endpoints), the rule performs no forwarding; if no
     /// filters are specified that would result in a response being sent, the
@@ -557,7 +557,7 @@ impl TlsRouteRule {
         }
     }
 }
-/// UDPRouteSpec defines the desired state of UDPRoute.
+/// [`UdpRouteSpec`] defines the desired state of UDPRoute.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.k8s.io",
@@ -575,7 +575,7 @@ impl TlsRouteRule {
     doc = "UDPRoute provides a way to route UDP traffic. When combined with a Gateway\nlistener, it can be used to forward traffic on the port specified by the\nlistener to a set of backends specified by the UDPRoute."
 )]
 pub struct UdpRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -637,7 +637,7 @@ pub struct UdpRouteSpec {
     /// ParentRef of the Route.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// UseDefaultGateways indicates the default Gateway scope to use for this
+    /// `use_default_gateways` indicates the default Gateway scope to use for this
     /// Route. If unset (the default) or set to None, the Route will not be
     /// attached to any default Gateway; if set, it will be attached to any
     /// default Gateway supporting the named scope, subject to the usual rules
@@ -651,7 +651,7 @@ pub struct UdpRouteSpec {
     /// certainly not use a default Gateway.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "useDefaultGateways")]
     pub use_default_gateways: Option<GatewayDefaultScope>,
-    /// Rules are a list of UDP matchers and actions.
+    /// `rules` are a list of UDP matchers and actions.
     pub rules: Vec<UdpRouteRule>,
 }
 impl UdpRouteSpec {
@@ -664,10 +664,10 @@ impl UdpRouteSpec {
         }
     }
 }
-/// UDPRouteStatus defines the observed state of UDPRoute.
+/// [`UdpRouteStatus`] defines the observed state of UDPRoute.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct UdpRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -691,15 +691,15 @@ impl UdpRouteStatus {
         }
     }
 }
-/// UDPRouteRule is the configuration for a given rule.
+/// [`UdpRouteRule`] is the configuration for a given rule.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct UdpRouteRule {
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
+    /// `name` is the name of the route rule. This name MUST be unique within a Route if it is set.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<SectionName>,
-    /// BackendRefs defines the backend(s) where matching requests should be
+    /// `backend_refs` defines the backend(s) where matching requests should be
     /// sent. If unspecified or invalid (refers to a nonexistent resource or a
     /// Service with no endpoints), the underlying implementation MUST actively
     /// reject connection attempts to this backend. Packet drops must

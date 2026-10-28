@@ -37,9 +37,34 @@ pub fn doc_lines(doc: &str) -> Vec<String> {
     lines
 }
 
+/// A Go doc with the name it starts with, as Go docs start with the declared
+/// name (`HTTPRouteSpec defines ...`), replaced. Any other doc is kept.
+pub fn replace_lead(doc: &str, go: &str, replacement: &str) -> String {
+    match doc.strip_prefix(go) {
+        Some(after) if !after.starts_with(|c: char| c.is_alphanumeric() || c == '_') => {
+            format!("{replacement}{after}")
+        },
+        _ => doc.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_leading_name_is_replaced() {
+        let doc = "HTTPRouteSpec defines an HTTPRouteSpec.";
+        assert_eq!(
+            replace_lead(doc, "HTTPRouteSpec", "[`HttpRouteSpec`]"),
+            "[`HttpRouteSpec`] defines an HTTPRouteSpec."
+        );
+        assert_eq!(
+            replace_lead("HTTPRouteSpecs are", "HTTPRouteSpec", "x"),
+            "HTTPRouteSpecs are"
+        );
+        assert_eq!(replace_lead("A spec", "HTTPRouteSpec", "x"), "A spec");
+    }
 
     #[test]
     fn code_blocks_are_text() {

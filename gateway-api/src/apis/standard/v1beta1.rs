@@ -36,7 +36,7 @@ pub use crate::apis::standard::v1::{
     RouteStatus, SecretObjectReference, SectionName, TlsModeType,
 };
 use crate::apis::standard::v1::{AllowedListeners, GatewayInfrastructure, GatewayTlsConfig};
-/// GatewaySpec defines the desired state of Gateway.
+/// [`GatewaySpec`] defines the desired state of Gateway.
 ///
 /// Not all possible combinations of options specified in the Spec are
 /// valid. Some invalid configurations can be caught synchronously via CRD
@@ -67,11 +67,11 @@ use crate::apis::standard::v1::{AllowedListeners, GatewayInfrastructure, Gateway
     doc = "Gateway represents an instance of a service-traffic handling infrastructure\nby binding Listeners to a set of IP addresses."
 )]
 pub struct GatewaySpec {
-    /// GatewayClassName used for this Gateway. This is the name of a
+    /// `gateway_class_name` used for this Gateway. This is the name of a
     /// GatewayClass resource.
     #[serde(rename = "gatewayClassName")]
     pub gateway_class_name: ObjectName,
-    /// Listeners associated with this Gateway. Listeners define
+    /// `listeners` associated with this Gateway. Listeners define
     /// logical endpoints that are bound on this Gateway's addresses.
     /// At least one Listener MUST be specified.
     ///
@@ -233,7 +233,7 @@ pub struct GatewaySpec {
     ///
     /// Support: Core
     pub listeners: Vec<Listener>,
-    /// Addresses requested for this Gateway. This is optional and behavior can
+    /// `addresses` requested for this Gateway. This is optional and behavior can
     /// depend on the implementation. If a value is set in the spec and the
     /// requested address is invalid or unavailable, the implementation MUST
     /// indicate this in an associated entry in GatewayStatus.Conditions.
@@ -255,16 +255,16 @@ pub struct GatewaySpec {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub addresses: Option<Vec<GatewaySpecAddress>>,
-    /// Infrastructure defines infrastructure level attributes about this Gateway instance.
+    /// `infrastructure` defines infrastructure level attributes about this Gateway instance.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub infrastructure: Option<GatewayInfrastructure>,
-    /// AllowedListeners defines which ListenerSets can be attached to this Gateway.
+    /// `allowed_listeners` defines which ListenerSets can be attached to this Gateway.
     /// The default value is to allow no ListenerSets.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowedListeners")]
     pub allowed_listeners: Option<AllowedListeners>,
-    /// TLS specifies frontend and backend tls configuration for entire gateway.
+    /// `tls` specifies frontend and backend tls configuration for entire gateway.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -283,7 +283,7 @@ impl GatewaySpec {
         }
     }
 }
-/// GatewayClassSpec reflects the configuration of a class of Gateways.
+/// [`GatewayClassSpec`] reflects the configuration of a class of Gateways.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.k8s.io",
@@ -313,7 +313,7 @@ impl GatewaySpec {
     doc = "GatewayClass describes a class of Gateways available to the user for creating\nGateway resources.\n\nIt is recommended that this resource be used as a template for Gateways. This\nmeans that a Gateway is based on the state of the GatewayClass at the time it\nwas created and changes to the GatewayClass or associated parameters are not\npropagated down to existing Gateways. This recommendation is intended to\nlimit the blast radius of changes to GatewayClass or associated parameters.\nIf implementations choose to propagate GatewayClass changes to existing\nGateways, that MUST be clearly documented by the implementation.\n\nWhenever one or more Gateways are using a GatewayClass, implementations SHOULD\nadd the `gateway-exists-finalizer.gateway.networking.k8s.io` finalizer on the\nassociated GatewayClass. This ensures that a GatewayClass associated with a\nGateway is not deleted while in use.\n\nGatewayClass is a Cluster level resource."
 )]
 pub struct GatewayClassSpec {
-    /// ControllerName is the name of the controller that is managing Gateways of
+    /// `controller_name` is the name of the controller that is managing Gateways of
     /// this class. The value of this field MUST be a domain prefixed path.
     ///
     /// Example: "example.net/gateway-controller".
@@ -323,7 +323,7 @@ pub struct GatewayClassSpec {
     /// Support: Core
     #[serde(rename = "controllerName")]
     pub controller_name: GatewayController,
-    /// ParametersRef is a reference to a resource that contains the configuration
+    /// `parameters_ref` is a reference to a resource that contains the configuration
     /// parameters corresponding to the GatewayClass. This is optional if the
     /// controller does not require any additional configuration.
     ///
@@ -343,7 +343,7 @@ pub struct GatewayClassSpec {
     /// Support: Implementation-specific
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parametersRef")]
     pub parameters_ref: Option<ParametersReference>,
-    /// Description helps describe a GatewayClass with more details.
+    /// `description` helps describe a GatewayClass with more details.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -357,7 +357,7 @@ impl GatewayClassSpec {
         }
     }
 }
-/// HTTPRouteSpec defines the desired state of HTTPRoute
+/// [`HttpRouteSpec`] defines the desired state of HTTPRoute
 #[derive(
     kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default,
 )]
@@ -379,7 +379,7 @@ impl GatewayClassSpec {
     doc = "HTTPRoute provides a way to route HTTP requests. This includes the capability\nto match requests by hostname, path, header, or query param. Filters can be\nused to specify additional processing steps. Backends specify where matching\nrequests should be routed."
 )]
 pub struct HttpRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -431,7 +431,7 @@ pub struct HttpRouteSpec {
     /// generic way to enable other kinds of cross-namespace reference.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// Hostnames defines a set of hostnames that should match against the HTTP Host
+    /// `hostnames` defines a set of hostnames that should match against the HTTP Host
     /// header to select a HTTPRoute used to process the request. Implementations
     /// MUST ignore any port value specified in the HTTP Host header while
     /// performing a match and (absent of any applicable header modification
@@ -486,13 +486,13 @@ pub struct HttpRouteSpec {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostnames: Option<Vec<Hostname>>,
-    /// Rules are a list of HTTP matchers, filters and actions.
+    /// `rules` are a list of HTTP matchers, filters and actions.
     ///
     /// Default: `{{matches: {{path: {type: "PathPrefix", value: "/"}}}}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<Vec<HttpRouteRule>>,
 }
-/// ReferenceGrantSpec identifies a cross namespace relationship that is trusted
+/// [`ReferenceGrantSpec`] identifies a cross namespace relationship that is trusted
 /// for Gateway API.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
@@ -511,14 +511,14 @@ pub struct HttpRouteSpec {
     doc = "ReferenceGrant identifies kinds of resources in other namespaces that are\ntrusted to reference the specified kinds of resources in the same namespace\nas the policy.\n\nEach ReferenceGrant can be used to represent a unique trust relationship.\nAdditional Reference Grants can be used to add to the set of trusted\nsources of inbound references for the namespace they are defined within.\n\nAll cross-namespace references in Gateway API (with the exception of cross-namespace\nGateway-route attachment) require a ReferenceGrant.\n\nReferenceGrant is a form of runtime verification allowing users to assert\nwhich cross-namespace object references are permitted. Implementations that\nsupport ReferenceGrant MUST NOT permit cross-namespace references which have\nno grant, and MUST respond to the removal of a grant by revoking the access\nthat the grant allowed."
 )]
 pub struct ReferenceGrantSpec {
-    /// From describes the trusted namespaces and kinds that can reference the
+    /// `from` describes the trusted namespaces and kinds that can reference the
     /// resources described in "To". Each entry in this list MUST be considered
     /// to be an additional place that references can be valid from, or to put
     /// this another way, entries MUST be combined using OR.
     ///
     /// Support: Core
     pub from: Vec<ReferenceGrantFrom>,
-    /// To describes the resources that may be referenced by the resources
+    /// `to` describes the resources that may be referenced by the resources
     /// described in "From". Each entry in this list MUST be considered to be an
     /// additional place that references can be valid to, or to put this another
     /// way, entries MUST be combined using OR.

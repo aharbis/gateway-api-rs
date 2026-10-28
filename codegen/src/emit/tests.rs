@@ -45,13 +45,15 @@ const IR: &str = r#"{
         {
           "name": "WidgetSpec", "file": "widget_types.go", "kind": "struct", "doc": "WidgetSpec is the spec.",
           "fields": [
-            {"name": "Type", "json": "type", "type": {"named": "apis/v1.Shape"}},
-            {"name": "Port", "json": "port", "type": {"pointer": {"named": "apis/v1.PortNumber"}}, "optional": true, "default": "80"},
+            {"name": "Type", "json": "type", "type": {"named": "apis/v1.Shape"}, "doc": "Type is the shape, such as ShapeRound."},
+            {"name": "Port", "json": "port", "type": {"pointer": {"named": "apis/v1.PortNumber"}}, "optional": true, "default": "80",
+             "doc": "Port is a PortNumber, reported in WidgetStatus."},
             {"name": "From", "json": "from", "type": {"pointer": {"named": "apis/v1.Shape"}}, "optional": true, "enum": ["Round"]}
           ]
         },
         {
           "name": "WidgetStatus", "file": "widget_types.go", "kind": "struct",
+          "doc": "WidgetStatus is the status of a `Widget`, not \"WidgetStatus\".",
           "fields": [
             {"name": "Conditions", "json": "conditions", "type": {"slice": {"named": "k8s.io/apimachinery/pkg/apis/meta/v1.Condition"}}, "optional": true}
           ]
@@ -61,7 +63,7 @@ const IR: &str = r#"{
         {"name": "Unused", "file": "widget_types.go", "kind": "scalar", "basic": "string"}
       ],
       "consts": [
-        {"name": "ShapeRound", "type": "apis/v1.Shape", "value": "Round", "doc": "Round is round."},
+        {"name": "ShapeRound", "type": "apis/v1.Shape", "value": "Round", "doc": "ShapeRound is round, unlike ShapeSquare."},
         {"name": "ShapeSquare", "type": "apis/v1.Shape", "value": "Square"}
       ]
     },
@@ -141,7 +143,7 @@ fn tokens(item: &syn::Item) -> String {
 #[test]
 fn spec_struct_has_kube_attributes() {
     let expected: syn::Item = parse_quote! {
-        /// WidgetSpec is the spec.
+        /// [`WidgetSpec`] is the spec.
         #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
         #[kube(group = "example.io", version = "v1", kind = "Widget", root = "Widget", plural = "widgets")]
         #[kube(namespaced)]
@@ -151,8 +153,11 @@ fn spec_struct_has_kube_attributes() {
         #[kube(derive = "PartialEq")]
         #[kube(doc = "Widget is a widget.")]
         pub struct WidgetSpec {
+            /// `type_` is the shape, such as ShapeRound.
             #[serde(rename = "type")]
             pub type_: Shape,
+            /// `port` is a PortNumber, reported in WidgetStatus.
+            ///
             /// Default: `80`.
             #[serde(default, skip_serializing_if = "Option::is_none")]
             pub port: Option<PortNumber>,
@@ -168,6 +173,7 @@ fn spec_struct_has_kube_attributes() {
 #[test]
 fn struct_without_required_fields_derives_default() {
     let expected: syn::Item = parse_quote! {
+        /// [`WidgetStatus`] is the status of a `Widget`, not "WidgetStatus".
         #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
         pub struct WidgetStatus {
             #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -208,11 +214,11 @@ fn struct_with_required_fields_has_a_constructor() {
 #[test]
 fn enum_values_are_in_const_order_with_const_docs() {
     let expected: syn::Item = parse_quote! {
-        /// Shape is a shape.
+        /// [`Shape`] is a shape.
         #[derive(Clone, Debug)]
         #[non_exhaustive]
         pub enum Shape {
-            /// Round is round.
+            /// [`Shape::Round`] is round, unlike ShapeSquare.
             Round,
             Square,
             /// A value without a variant: one this version of the crate
@@ -264,15 +270,18 @@ fn other_version_reexports_aliases_and_copies_the_spec() {
     assert_eq!(uses, [tokens(&reexport), tokens(&import)]);
 
     let expected: syn::Item = parse_quote! {
-        /// WidgetSpec is the spec.
+        /// [`WidgetSpec`] is the spec.
         #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
         #[kube(group = "example.io", version = "v1beta1", kind = "Widget", root = "Widget", plural = "widgets")]
         #[kube(namespaced)]
         #[kube(shortname = "wd")]
         #[kube(derive = "PartialEq")]
         pub struct WidgetSpec {
+            /// `type_` is the shape, such as ShapeRound.
             #[serde(rename = "type")]
             pub type_: Shape,
+            /// `port` is a PortNumber, reported in WidgetStatus.
+            ///
             /// Default: `80`.
             #[serde(default, skip_serializing_if = "Option::is_none")]
             pub port: Option<PortNumber>,

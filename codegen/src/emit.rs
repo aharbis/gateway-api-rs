@@ -13,7 +13,7 @@ use anyhow::{Context, Result, bail};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use self::docs::doc_attrs;
+use self::docs::{doc_attrs, replace_lead};
 use crate::{
     index::{key, split_key},
     ir::{Package, TypeKind, TypeRef},
@@ -151,42 +151,7 @@ impl<'m, 'a> ModuleEmitter<'m, 'a> {
 
     /// The module's source, or `None` if it has nothing to emit.
     fn emit(mut self) -> Result<Option<String>> {
-        let mut items = Vec::new();
-        for ty in &self.package.types {
-            let key = key(&self.package.path, &ty.name);
-            if let Some(copy) = self.copies.get(&key) {
-                let kind = copy.kind;
-                let (_, spec) = self.model.index.get(&kind.spec)?;
-                let name = copy.name.clone();
-                items.push(self.struct_item(&name, &kind.spec, &spec.doc, Some(kind))?);
-                continue;
-            }
-            if !self.model.types.contains(&key) {
-                continue;
-            }
-            let name = type_name(&ty.name);
-            let item = match ty.kind {
-                TypeKind::Struct => {
-                    let kind = self.spec_of(&key)?;
-                    self.struct_item(&name, &key, &ty.doc, kind)?
-                },
-                TypeKind::Scalar => {
-                    if let Some(e) = self.model.enums.get(&key) {
-                        enums::enum_item(self.model, &name, &key, &ty.doc, e)?
-                    } else {
-                        let basic = basic_type(ty.basic.as_deref().context("a scalar has a basic type")?)?;
-                        type_alias(&name, &ty.doc, &basic)
-                    }
-                },
-                TypeKind::Alias => {
-                    let alias = ty.alias.as_ref().context("an alias has a right-hand side")?;
-                    let rust = self.rust_type(alias)?;
-                    type_alias(&name, &ty.doc, &rust)
-                },
-                TypeKind::Other => bail!("can't emit Go type {key}"),
-            };
-            items.push(item);
-        }
+        let items = self.items()?;
         if items.is_empty() && self.reexports.is_empty() {
             return Ok(None);
         }
@@ -215,6 +180,49 @@ impl<'m, 'a> ModuleEmitter<'m, 'a> {
             #(#items)*
         })?;
         Ok(Some(format!("{GENERATED_HEADER}{}", prettyplease::unparse(&file))))
+    }
+
+    /// The module's items, in Go source order.
+    fn items(&mut self) -> Result<Vec<TokenStream>> {
+        let mut items = Vec::new();
+        for ty in &self.package.types {
+            let key = key(&self.package.path, &ty.name);
+            if let Some(copy) = self.copies.get(&key) {
+                let kind = copy.kind;
+                let (_, spec) = self.model.index.get(&kind.spec)?;
+                let name = copy.name.clone();
+                let doc = replace_lead(&spec.doc, &spec.name, &format!("[`{name}`]"));
+                items.push(self.struct_item(&name, &kind.spec, &doc, Some(kind))?);
+                continue;
+            }
+            if !self.model.types.contains(&key) {
+                continue;
+            }
+            let name = type_name(&ty.name);
+            let doc = replace_lead(&ty.doc, &ty.name, &format!("[`{name}`]"));
+            let item = match ty.kind {
+                TypeKind::Struct => {
+                    let kind = self.spec_of(&key)?;
+                    self.struct_item(&name, &key, &doc, kind)?
+                },
+                TypeKind::Scalar => {
+                    if let Some(e) = self.model.enums.get(&key) {
+                        self.enum_item(&name, &key, &doc, e)?
+                    } else {
+                        let basic = basic_type(ty.basic.as_deref().context("a scalar has a basic type")?)?;
+                        type_alias(&name, &doc, &basic)
+                    }
+                },
+                TypeKind::Alias => {
+                    let alias = ty.alias.as_ref().context("an alias has a right-hand side")?;
+                    let rust = self.rust_type(alias)?;
+                    type_alias(&name, &doc, &rust)
+                },
+                TypeKind::Other => bail!("can't emit Go type {key}"),
+            };
+            items.push(item);
+        }
+        Ok(items)
     }
 
     /// The kind in this package whose spec is the struct `key`, if any.

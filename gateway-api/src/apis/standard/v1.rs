@@ -43,7 +43,7 @@
 //!   - storage: yes
 //!   - deprecated: no
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, LabelSelector};
-/// BackendTLSPolicySpec defines the desired state of BackendTLSPolicy.
+/// [`BackendTlsPolicySpec`] defines the desired state of BackendTLSPolicy.
 ///
 /// Support: Extended
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
@@ -62,7 +62,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, LabelSelector};
 #[kube(derive = "PartialEq")]
 #[kube(doc = "BackendTLSPolicy provides a way to configure how a Gateway\nconnects to a Backend via TLS.")]
 pub struct BackendTlsPolicySpec {
-    /// TargetRefs identifies an API object to apply the policy to.
+    /// `target_refs` identifies an API object to apply the policy to.
     /// Note that this config applies to the entire referenced resource
     /// by default, but this default may change in the future to provide
     /// a more granular application of the policy.
@@ -121,9 +121,9 @@ pub struct BackendTlsPolicySpec {
     /// a more granular application of the policy.
     #[serde(rename = "targetRefs")]
     pub target_refs: Vec<LocalPolicyTargetReferenceWithSectionName>,
-    /// Validation contains backend TLS validation configuration.
+    /// `validation` contains backend TLS validation configuration.
     pub validation: BackendTlsPolicyValidation,
-    /// Options are a list of key/value pairs to enable extended TLS
+    /// `options` are a list of key/value pairs to enable extended TLS
     /// configuration for each implementation. For example, configuring the
     /// minimum TLS version or supported cipher suites.
     ///
@@ -149,10 +149,10 @@ impl BackendTlsPolicySpec {
         }
     }
 }
-/// BackendTLSPolicyValidation contains backend TLS validation configuration.
+/// [`BackendTlsPolicyValidation`] contains backend TLS validation configuration.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct BackendTlsPolicyValidation {
-    /// CACertificateRefs contains one or more references to Kubernetes objects that
+    /// `ca_certificate_refs` contains one or more references to Kubernetes objects that
     /// contain a PEM-encoded TLS CA certificate bundle, which is used to
     /// validate a TLS handshake between the Gateway and backend Pod.
     ///
@@ -198,7 +198,7 @@ pub struct BackendTlsPolicyValidation {
     /// of resources, or a single reference that includes multiple certificates.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "caCertificateRefs")]
     pub ca_certificate_refs: Option<Vec<LocalObjectReference>>,
-    /// WellKnownCACertificates specifies whether a well-known set of CA certificates
+    /// `well_known_ca_certificates` specifies whether a well-known set of CA certificates
     /// may be used in the TLS handshake between the gateway and backend pod.
     ///
     /// If WellKnownCACertificates is unspecified or empty (""), then CACertificateRefs
@@ -219,7 +219,7 @@ pub struct BackendTlsPolicyValidation {
     /// Support: Implementation-specific
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "wellKnownCACertificates")]
     pub well_known_ca_certificates: Option<WellKnownCaCertificatesType>,
-    /// Hostname is used for two purposes in the connection between Gateways and
+    /// `hostname` is used for two purposes in the connection between Gateways and
     /// backends:
     ///
     /// 1. Hostname MUST be used as the SNI to connect to the backend (RFC 6066).
@@ -231,7 +231,7 @@ pub struct BackendTlsPolicyValidation {
     ///
     /// Support: Core
     pub hostname: PreciseHostname,
-    /// SubjectAltNames contains one or more Subject Alternative Names.
+    /// `subject_alt_names` contains one or more Subject Alternative Names.
     /// When specified the certificate served from the backend MUST
     /// have at least one Subject Alternate Name matching one of the specified SubjectAltNames.
     ///
@@ -250,21 +250,21 @@ impl BackendTlsPolicyValidation {
         }
     }
 }
-/// SubjectAltName represents Subject Alternative Name.
+/// [`SubjectAltName`] represents Subject Alternative Name.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct SubjectAltName {
-    /// Type determines the format of the Subject Alternative Name. Always required.
+    /// `type_` determines the format of the Subject Alternative Name. Always required.
     ///
     /// Support: Core
     #[serde(rename = "type")]
     pub type_: SubjectAltNameType,
-    /// Hostname contains Subject Alternative Name specified in DNS name format.
+    /// `hostname` contains Subject Alternative Name specified in DNS name format.
     /// Required when Type is set to Hostname, ignored otherwise.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<Hostname>,
-    /// URI contains Subject Alternative Name specified in a full URI format.
+    /// `uri` contains Subject Alternative Name specified in a full URI format.
     /// It MUST include both a scheme (e.g., "http" or "ftp") and a scheme-specific-part.
     /// Common values include SPIFFE IDs like "spiffe://mycluster.example.com/ns/myns/sa/svc1sa".
     /// Required when Type is set to URI, ignored otherwise.
@@ -283,12 +283,12 @@ impl SubjectAltName {
         }
     }
 }
-/// WellKnownCACertificatesType is the type of CA certificate that will be used
+/// [`WellKnownCaCertificatesType`] is the type of CA certificate that will be used
 /// when the caCertificateRefs field is unspecified.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum WellKnownCaCertificatesType {
-    /// WellKnownCACertificatesSystem indicates that well known system CA certificates should be used.
+    /// [`WellKnownCaCertificatesType::System`] indicates that well known system CA certificates should be used.
     System,
     /// A value without a variant: one this version of the crate
     /// doesn't know, or one outside upstream's values.
@@ -372,15 +372,15 @@ impl schemars::JsonSchema for WellKnownCaCertificatesType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// SubjectAltNameType is the type of the Subject Alternative Name.
+/// [`SubjectAltNameType`] is the type of the Subject Alternative Name.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum SubjectAltNameType {
-    /// HostnameSubjectAltNameType specifies hostname-based SAN.
+    /// [`SubjectAltNameType::Hostname`] specifies hostname-based SAN.
     ///
     /// Support: Core
     Hostname,
-    /// URISubjectAltNameType specifies URI-based SAN, e.g. SPIFFE id.
+    /// [`SubjectAltNameType::Uri`] specifies URI-based SAN, e.g. SPIFFE id.
     ///
     /// Support: Core
     Uri,
@@ -469,7 +469,7 @@ impl schemars::JsonSchema for SubjectAltNameType {
         schemars::json_schema!({ "type" : "string", "enum" : ["Hostname", "URI"] })
     }
 }
-/// GatewaySpec defines the desired state of Gateway.
+/// [`GatewaySpec`] defines the desired state of Gateway.
 ///
 /// Not all possible combinations of options specified in the Spec are
 /// valid. Some invalid configurations can be caught synchronously via CRD
@@ -500,11 +500,11 @@ impl schemars::JsonSchema for SubjectAltNameType {
     doc = "Gateway represents an instance of a service-traffic handling infrastructure\nby binding Listeners to a set of IP addresses."
 )]
 pub struct GatewaySpec {
-    /// GatewayClassName used for this Gateway. This is the name of a
+    /// `gateway_class_name` used for this Gateway. This is the name of a
     /// GatewayClass resource.
     #[serde(rename = "gatewayClassName")]
     pub gateway_class_name: ObjectName,
-    /// Listeners associated with this Gateway. Listeners define
+    /// `listeners` associated with this Gateway. Listeners define
     /// logical endpoints that are bound on this Gateway's addresses.
     /// At least one Listener MUST be specified.
     ///
@@ -666,7 +666,7 @@ pub struct GatewaySpec {
     ///
     /// Support: Core
     pub listeners: Vec<Listener>,
-    /// Addresses requested for this Gateway. This is optional and behavior can
+    /// `addresses` requested for this Gateway. This is optional and behavior can
     /// depend on the implementation. If a value is set in the spec and the
     /// requested address is invalid or unavailable, the implementation MUST
     /// indicate this in an associated entry in GatewayStatus.Conditions.
@@ -688,16 +688,16 @@ pub struct GatewaySpec {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub addresses: Option<Vec<GatewaySpecAddress>>,
-    /// Infrastructure defines infrastructure level attributes about this Gateway instance.
+    /// `infrastructure` defines infrastructure level attributes about this Gateway instance.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub infrastructure: Option<GatewayInfrastructure>,
-    /// AllowedListeners defines which ListenerSets can be attached to this Gateway.
+    /// `allowed_listeners` defines which ListenerSets can be attached to this Gateway.
     /// The default value is to allow no ListenerSets.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowedListeners")]
     pub allowed_listeners: Option<AllowedListeners>,
-    /// TLS specifies frontend and backend tls configuration for entire gateway.
+    /// `tls` specifies frontend and backend tls configuration for entire gateway.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -716,20 +716,20 @@ impl GatewaySpec {
         }
     }
 }
-/// AllowedListeners defines which ListenerSets can be attached to this Gateway.
+/// [`AllowedListeners`] defines which ListenerSets can be attached to this Gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct AllowedListeners {
-    /// Namespaces defines which namespaces ListenerSets can be attached to this Gateway.
+    /// `namespaces` defines which namespaces ListenerSets can be attached to this Gateway.
     /// The default value is to allow no ListenerSets.
     ///
     /// Default: `{from: None}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespaces: Option<ListenerNamespaces>,
 }
-/// ListenerNamespaces indicate which namespaces ListenerSets should be selected from.
+/// [`ListenerNamespaces`] indicate which namespaces ListenerSets should be selected from.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct ListenerNamespaces {
-    /// From indicates where ListenerSets can attach to this Gateway. Possible
+    /// `from` indicates where ListenerSets can attach to this Gateway. Possible
     /// values are:
     ///
     /// * Same: Only ListenerSets in the same namespace may be attached to this Gateway.
@@ -742,22 +742,22 @@ pub struct ListenerNamespaces {
     /// Default: `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub from: Option<FromNamespaces>,
-    /// Selector must be specified when From is set to "Selector". In that case,
+    /// `selector` must be specified when From is set to "Selector". In that case,
     /// only ListenerSets in Namespaces matching this Selector will be selected by this
     /// Gateway. This field is ignored for other values of "From".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selector: Option<LabelSelector>,
 }
-/// Listener embodies the concept of a logical endpoint where a Gateway accepts
+/// [`Listener`] embodies the concept of a logical endpoint where a Gateway accepts
 /// network connections.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct Listener {
-    /// Name is the name of the Listener. This name MUST be unique within a
+    /// `name` is the name of the Listener. This name MUST be unique within a
     /// Gateway.
     ///
     /// Support: Core
     pub name: SectionName,
-    /// Hostname specifies the virtual hostname to match for protocol types that
+    /// `hostname` specifies the virtual hostname to match for protocol types that
     /// define this concept. When unspecified, all hostnames are matched. This
     /// field is ignored for protocols that don't require hostname based
     /// matching.
@@ -806,16 +806,16 @@ pub struct Listener {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<Hostname>,
-    /// Port is the network port. Multiple listeners may use the
+    /// `port` is the network port. Multiple listeners may use the
     /// same port, subject to the Listener compatibility rules.
     ///
     /// Support: Core
     pub port: PortNumber,
-    /// Protocol specifies the network protocol this listener expects to receive.
+    /// `protocol` specifies the network protocol this listener expects to receive.
     ///
     /// Support: Core
     pub protocol: ProtocolType,
-    /// TLS is the TLS configuration for the Listener. This field is required if
+    /// `tls` is the TLS configuration for the Listener. This field is required if
     /// the Protocol field is "HTTPS" or "TLS". It is invalid to set this field
     /// if the Protocol field is "HTTP", "TCP", or "UDP".
     ///
@@ -828,7 +828,7 @@ pub struct Listener {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tls: Option<ListenerTlsConfig>,
-    /// AllowedRoutes defines the types of routes that MAY be attached to a
+    /// `allowed_routes` defines the types of routes that MAY be attached to a
     /// Listener and the trusted namespaces where those Route resources MAY be
     /// present.
     ///
@@ -870,7 +870,7 @@ impl Listener {
         }
     }
 }
-/// ProtocolType defines the application protocol accepted by a Listener.
+/// [`ProtocolType`] defines the application protocol accepted by a Listener.
 /// Implementations are not required to accept all the defined protocols. If an
 /// implementation does not support a specified protocol, it MUST set the
 /// "Accepted" condition to False for the affected Listener with a reason of
@@ -1003,10 +1003,10 @@ impl schemars::JsonSchema for ProtocolType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// GatewayBackendTLS describes backend TLS configuration for gateway.
+/// [`GatewayBackendTls`] describes backend TLS configuration for gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GatewayBackendTls {
-    /// ClientCertificateRef references an object that contains a client certificate
+    /// `client_certificate_ref` references an object that contains a client certificate
     /// and its associated private key. It can reference standard Kubernetes resources,
     /// i.e., Secret, or implementation-specific custom resources.
     ///
@@ -1033,10 +1033,10 @@ pub struct GatewayBackendTls {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "clientCertificateRef")]
     pub client_certificate_ref: Option<SecretObjectReference>,
 }
-/// ListenerTLSConfig describes a TLS configuration for a listener.
+/// [`ListenerTlsConfig`] describes a TLS configuration for a listener.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct ListenerTlsConfig {
-    /// Mode defines the TLS behavior for the TLS session initiated by the client.
+    /// `mode` defines the TLS behavior for the TLS session initiated by the client.
     /// There are two possible modes:
     ///
     /// - Terminate: The TLS session between the downstream client and the
@@ -1053,7 +1053,7 @@ pub struct ListenerTlsConfig {
     /// Default: `Terminate`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<TlsModeType>,
-    /// CertificateRefs contains a series of references to Kubernetes objects that
+    /// `certificate_refs` contains a series of references to Kubernetes objects that
     /// contains TLS certificates and private keys. These certificates are used to
     /// establish a TLS handshake for requests that match the hostname of the
     /// associated listener.
@@ -1079,7 +1079,7 @@ pub struct ListenerTlsConfig {
     /// Support: Implementation-specific (More than one reference or other resource types)
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "certificateRefs")]
     pub certificate_refs: Option<Vec<SecretObjectReference>>,
-    /// Options are a list of key/value pairs to enable extended TLS
+    /// `options` are a list of key/value pairs to enable extended TLS
     /// configuration for each implementation. For example, configuring the
     /// minimum TLS version or supported cipher suites.
     ///
@@ -1092,10 +1092,10 @@ pub struct ListenerTlsConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub options: Option<std::collections::BTreeMap<AnnotationKey, AnnotationValue>>,
 }
-/// GatewayTLSConfig specifies frontend and backend tls configuration for gateway.
+/// [`GatewayTlsConfig`] specifies frontend and backend tls configuration for gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GatewayTlsConfig {
-    /// Backend describes TLS configuration for gateway when connecting
+    /// `backend` describes TLS configuration for gateway when connecting
     /// to backends.
     ///
     /// Note that this contains only details for the Gateway as a TLS client,
@@ -1105,21 +1105,21 @@ pub struct GatewayTlsConfig {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backend: Option<GatewayBackendTls>,
-    /// Frontend describes TLS config when client connects to Gateway.
+    /// `frontend` describes TLS config when client connects to Gateway.
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontend: Option<FrontendTlsConfig>,
 }
-/// FrontendTLSConfig specifies frontend tls configuration for gateway.
+/// [`FrontendTlsConfig`] specifies frontend tls configuration for gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct FrontendTlsConfig {
-    /// Default specifies the default client certificate validation configuration
+    /// `default` specifies the default client certificate validation configuration
     /// for all Listeners handling HTTPS traffic, unless a per-port configuration
     /// is defined.
     ///
     /// support: Core
     pub default: TlsConfig,
-    /// PerPort specifies tls configuration assigned per port.
+    /// `per_port` specifies tls configuration assigned per port.
     /// Per port configuration is optional. Once set this configuration overrides
     /// the default configuration for all Listeners handling HTTPS traffic
     /// that match this port.
@@ -1138,7 +1138,7 @@ impl FrontendTlsConfig {
         }
     }
 }
-/// TLSModeType type defines how a Gateway handles TLS sessions.
+/// [`TlsModeType`] type defines how a Gateway handles TLS sessions.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum TlsModeType {
@@ -1243,12 +1243,12 @@ impl Default for TlsModeType {
         Self::Terminate
     }
 }
-/// TLSConfig describes TLS configuration that can apply to multiple Listeners
+/// [`TlsConfig`] describes TLS configuration that can apply to multiple Listeners
 /// within this Gateway. Currently, it stores only the client certificate validation
 /// configuration, but this may be extended in the future.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct TlsConfig {
-    /// Validation holds configuration information for validating the frontend (client).
+    /// `validation` holds configuration information for validating the frontend (client).
     /// Setting this field will result in mutual authentication when connecting to the gateway.
     /// In browsers this may result in a dialog appearing
     /// that requests a user to specify the client certificate.
@@ -1266,7 +1266,7 @@ pub struct TlsPortConfig {
     ///
     /// Support: Core
     pub port: PortNumber,
-    /// TLS store the configuration that will be applied to all Listeners handling
+    /// `tls` store the configuration that will be applied to all Listeners handling
     /// HTTPS traffic and matching given port.
     ///
     /// Support: Core
@@ -1281,11 +1281,11 @@ impl TlsPortConfig {
         }
     }
 }
-/// FrontendTLSValidation holds configuration information that can be used to validate
+/// [`FrontendTlsValidation`] holds configuration information that can be used to validate
 /// the frontend initiating the TLS connection
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct FrontendTlsValidation {
-    /// CACertificateRefs contains one or more references to Kubernetes
+    /// `ca_certificate_refs` contains one or more references to Kubernetes
     /// objects that contain a PEM-encoded TLS CA certificate bundle, which
     /// is used as a trust anchor to validate the certificates presented by
     /// the client.
@@ -1360,16 +1360,16 @@ impl FrontendTlsValidation {
         }
     }
 }
-/// FrontendValidationModeType type defines how a Gateway validates client certificates.
+/// [`FrontendValidationModeType`] type defines how a Gateway validates client certificates.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum FrontendValidationModeType {
-    /// AllowValidOnly indicates that a client certificate is required
+    /// [`FrontendValidationModeType::AllowValidOnly`] indicates that a client certificate is required
     /// during the TLS handshake and MUST pass validation.
     ///
     /// Support: Core
     AllowValidOnly,
-    /// AllowInsecureFallback indicates that a client certificate may not be
+    /// [`FrontendValidationModeType::AllowInsecureFallback`] indicates that a client certificate may not be
     /// presented during the handshake or the validation against CA certificates may fail.
     ///
     /// Support: Extended
@@ -1466,10 +1466,10 @@ impl Default for FrontendValidationModeType {
         Self::AllowValidOnly
     }
 }
-/// AllowedRoutes defines which Routes may be attached to this Listener.
+/// [`AllowedRoutes`] defines which Routes may be attached to this Listener.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct AllowedRoutes {
-    /// Namespaces indicates namespaces from which Routes may be attached to this
+    /// `namespaces` indicates namespaces from which Routes may be attached to this
     /// Listener. This is restricted to the namespace of this Gateway by default.
     ///
     /// Support: Core
@@ -1477,7 +1477,7 @@ pub struct AllowedRoutes {
     /// Default: `{from: Same}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespaces: Option<RouteNamespaces>,
-    /// Kinds specifies the groups and kinds of Routes that are allowed to bind
+    /// `kinds` specifies the groups and kinds of Routes that are allowed to bind
     /// to this Gateway Listener. When unspecified or empty, the kinds of Routes
     /// selected are determined using the Listener protocol.
     ///
@@ -1491,7 +1491,7 @@ pub struct AllowedRoutes {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kinds: Option<Vec<RouteGroupKind>>,
 }
-/// FromNamespaces specifies namespace from which Routes/ListenerSets may be attached to a
+/// [`FromNamespaces`] specifies namespace from which Routes/ListenerSets may be attached to a
 /// Gateway.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -1599,10 +1599,10 @@ impl schemars::JsonSchema for FromNamespaces {
         )
     }
 }
-/// RouteNamespaces indicate which namespaces Routes should be selected from.
+/// [`RouteNamespaces`] indicate which namespaces Routes should be selected from.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct RouteNamespaces {
-    /// From indicates where Routes will be selected for this Gateway. Possible
+    /// `from` indicates where Routes will be selected for this Gateway. Possible
     /// values are:
     ///
     /// * All: Routes in all namespaces may be used by this Gateway.
@@ -1618,7 +1618,7 @@ pub struct RouteNamespaces {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(extend("enum" = ["All", "Selector", "Same"]))]
     pub from: Option<FromNamespaces>,
-    /// Selector must be specified when From is set to "Selector". In that case,
+    /// `selector` must be specified when From is set to "Selector". In that case,
     /// only Routes in Namespaces matching this Selector will be selected by this
     /// Gateway. This field is ignored for other values of "From".
     ///
@@ -1626,15 +1626,15 @@ pub struct RouteNamespaces {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selector: Option<LabelSelector>,
 }
-/// RouteGroupKind indicates the group and kind of a Route resource.
+/// [`RouteGroupKind`] indicates the group and kind of a Route resource.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct RouteGroupKind {
-    /// Group is the group of the Route.
+    /// `group` is the group of the Route.
     ///
     /// Default: `gateway.networking.k8s.io`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is the kind of the Route.
+    /// `kind` is the kind of the Route.
     pub kind: Kind,
 }
 impl RouteGroupKind {
@@ -1646,10 +1646,10 @@ impl RouteGroupKind {
         }
     }
 }
-/// GatewaySpecAddress describes an address that can be bound to a Gateway.
+/// [`GatewaySpecAddress`] describes an address that can be bound to a Gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GatewaySpecAddress {
-    /// Type of the address.
+    /// `type_` of the address.
     ///
     /// Default: `IPAddress`.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
@@ -1664,15 +1664,15 @@ pub struct GatewaySpecAddress {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
 }
-/// GatewayStatusAddress describes a network address that is bound to a Gateway.
+/// [`GatewayStatusAddress`] describes a network address that is bound to a Gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct GatewayStatusAddress {
-    /// Type of the address.
+    /// `type_` of the address.
     ///
     /// Default: `IPAddress`.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub type_: Option<AddressType>,
-    /// Value of the address. The validity of the values will depend
+    /// `value` of the address. The validity of the values will depend
     /// on the type and support by the controller.
     ///
     /// Examples: `1.2.3.4`, `128::1`, `my-ip-address`.
@@ -1687,10 +1687,10 @@ impl GatewayStatusAddress {
         }
     }
 }
-/// GatewayStatus defines the observed state of Gateway.
+/// [`GatewayStatus`] defines the observed state of Gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GatewayStatus {
-    /// Addresses lists the network addresses that have been bound to the
+    /// `addresses` lists the network addresses that have been bound to the
     /// Gateway.
     ///
     /// This list may differ from the addresses provided in the spec under some
@@ -1701,7 +1701,7 @@ pub struct GatewayStatus {
     ///   * a specified address was unusable (e.g. already in use)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub addresses: Option<Vec<GatewayStatusAddress>>,
-    /// Conditions describe the current conditions of the Gateway.
+    /// `conditions` describe the current conditions of the Gateway.
     ///
     /// Implementations should prefer to express Gateway conditions
     /// using the `GatewayConditionType` and `GatewayConditionReason`
@@ -1717,10 +1717,10 @@ pub struct GatewayStatus {
     /// Default: `{{type: "Accepted", status: "Unknown", reason:"Pending", message:"Waiting for controller", lastTransitionTime: "1970-01-01T00:00:00Z"},{type: "Programmed", status: "Unknown", reason:"Pending", message:"Waiting for controller", lastTransitionTime: "1970-01-01T00:00:00Z"}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conditions: Option<Vec<Condition>>,
-    /// Listeners provide status for each unique listener port defined in the Spec.
+    /// `listeners` provide status for each unique listener port defined in the Spec.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub listeners: Option<Vec<ListenerStatus>>,
-    /// AttachedListenerSets represents the total number of ListenerSets that have been
+    /// `attached_listener_sets` represents the total number of ListenerSets that have been
     /// successfully attached to this Gateway.
     ///
     /// A ListenerSet is successfully attached to a Gateway when all the following conditions are met:
@@ -1733,10 +1733,10 @@ pub struct GatewayStatus {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "attachedListenerSets")]
     pub attached_listener_sets: Option<i32>,
 }
-/// GatewayInfrastructure defines infrastructure level attributes about a Gateway instance.
+/// [`GatewayInfrastructure`] defines infrastructure level attributes about a Gateway instance.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GatewayInfrastructure {
-    /// Labels that SHOULD be applied to any resources created in response to this Gateway.
+    /// `labels` that SHOULD be applied to any resources created in response to this Gateway.
     ///
     /// For implementations creating other Kubernetes objects, this should be the `metadata.labels` field on resources.
     /// For other implementations, this refers to any relevant (implementation specific) "labels" concepts.
@@ -1749,7 +1749,7 @@ pub struct GatewayInfrastructure {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub labels: Option<std::collections::BTreeMap<LabelKey, LabelValue>>,
-    /// Annotations that SHOULD be applied to any resources created in response to this Gateway.
+    /// `annotations` that SHOULD be applied to any resources created in response to this Gateway.
     ///
     /// For implementations creating other Kubernetes objects, this should be the `metadata.annotations` field on resources.
     /// For other implementations, this refers to any relevant (implementation specific) "annotations" concepts.
@@ -1759,7 +1759,7 @@ pub struct GatewayInfrastructure {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annotations: Option<std::collections::BTreeMap<AnnotationKey, AnnotationValue>>,
-    /// ParametersRef is a reference to a resource that contains the configuration
+    /// `parameters_ref` is a reference to a resource that contains the configuration
     /// parameters corresponding to the Gateway. This is optional if the
     /// controller does not require any additional configuration.
     ///
@@ -1778,15 +1778,15 @@ pub struct GatewayInfrastructure {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parametersRef")]
     pub parameters_ref: Option<LocalParametersReference>,
 }
-/// LocalParametersReference identifies an API object containing controller-specific
+/// [`LocalParametersReference`] identifies an API object containing controller-specific
 /// configuration resource within the namespace.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct LocalParametersReference {
-    /// Group is the group of the referent.
+    /// `group` is the group of the referent.
     pub group: Group,
-    /// Kind is kind of the referent.
+    /// `kind` is kind of the referent.
     pub kind: Kind,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: String,
 }
 impl LocalParametersReference {
@@ -1799,7 +1799,7 @@ impl LocalParametersReference {
         }
     }
 }
-/// GatewayConditionType is a type of condition associated with a
+/// [`GatewayConditionType`] is a type of condition associated with a
 /// Gateway. This type should be used with the GatewayStatus.Conditions
 /// field.
 #[derive(Clone, Debug)]
@@ -2005,7 +2005,7 @@ impl schemars::JsonSchema for GatewayConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// GatewayConditionReason defines the set of reasons that explain why a
+/// [`GatewayConditionReason`] defines the set of reasons that explain why a
 /// particular Gateway condition type has been raised.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -2243,12 +2243,12 @@ impl schemars::JsonSchema for GatewayConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// ListenerStatus is the status associated with a Listener.
+/// [`ListenerStatus`] is the status associated with a Listener.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ListenerStatus {
-    /// Name is the name of the Listener that this status corresponds to.
+    /// `name` is the name of the Listener that this status corresponds to.
     pub name: SectionName,
-    /// SupportedKinds is the list indicating the Kinds supported by this
+    /// `supported_kinds` is the list indicating the Kinds supported by this
     /// listener. This MUST represent the kinds supported by an implementation for
     /// that Listener configuration.
     ///
@@ -2259,7 +2259,7 @@ pub struct ListenerStatus {
     /// reference the valid Route kinds that have been specified.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedKinds")]
     pub supported_kinds: Option<Vec<RouteGroupKind>>,
-    /// AttachedRoutes represents the total number of Routes that have been
+    /// `attached_routes` represents the total number of Routes that have been
     /// successfully attached to this Listener.
     ///
     /// Successful attachment of a Route to a Listener is based solely on the
@@ -2281,7 +2281,7 @@ pub struct ListenerStatus {
     /// measuring blast radius/impact of changes to a Listener.
     #[serde(rename = "attachedRoutes")]
     pub attached_routes: i32,
-    /// Conditions describe the current condition of this listener.
+    /// `conditions` describe the current condition of this listener.
     pub conditions: Vec<Condition>,
 }
 impl ListenerStatus {
@@ -2299,7 +2299,7 @@ impl ListenerStatus {
         }
     }
 }
-/// ListenerConditionType is a type of condition associated with the
+/// [`ListenerConditionType`] is a type of condition associated with the
 /// listener. This type should be used with the ListenerStatus.Conditions
 /// field.
 #[derive(Clone, Debug)]
@@ -2561,7 +2561,7 @@ impl schemars::JsonSchema for ListenerConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// ListenerConditionReason defines the set of reasons that explain
+/// [`ListenerConditionReason`] defines the set of reasons that explain
 /// why a particular Listener condition type has been raised.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -2796,7 +2796,7 @@ impl schemars::JsonSchema for ListenerConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// GatewayClassSpec reflects the configuration of a class of Gateways.
+/// [`GatewayClassSpec`] reflects the configuration of a class of Gateways.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.k8s.io",
@@ -2826,7 +2826,7 @@ impl schemars::JsonSchema for ListenerConditionReason {
     doc = "GatewayClass describes a class of Gateways available to the user for creating\nGateway resources.\n\nIt is recommended that this resource be used as a template for Gateways. This\nmeans that a Gateway is based on the state of the GatewayClass at the time it\nwas created and changes to the GatewayClass or associated parameters are not\npropagated down to existing Gateways. This recommendation is intended to\nlimit the blast radius of changes to GatewayClass or associated parameters.\nIf implementations choose to propagate GatewayClass changes to existing\nGateways, that MUST be clearly documented by the implementation.\n\nWhenever one or more Gateways are using a GatewayClass, implementations SHOULD\nadd the `gateway-exists-finalizer.gateway.networking.k8s.io` finalizer on the\nassociated GatewayClass. This ensures that a GatewayClass associated with a\nGateway is not deleted while in use.\n\nGatewayClass is a Cluster level resource."
 )]
 pub struct GatewayClassSpec {
-    /// ControllerName is the name of the controller that is managing Gateways of
+    /// `controller_name` is the name of the controller that is managing Gateways of
     /// this class. The value of this field MUST be a domain prefixed path.
     ///
     /// Example: "example.net/gateway-controller".
@@ -2836,7 +2836,7 @@ pub struct GatewayClassSpec {
     /// Support: Core
     #[serde(rename = "controllerName")]
     pub controller_name: GatewayController,
-    /// ParametersRef is a reference to a resource that contains the configuration
+    /// `parameters_ref` is a reference to a resource that contains the configuration
     /// parameters corresponding to the GatewayClass. This is optional if the
     /// controller does not require any additional configuration.
     ///
@@ -2856,7 +2856,7 @@ pub struct GatewayClassSpec {
     /// Support: Implementation-specific
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parametersRef")]
     pub parameters_ref: Option<ParametersReference>,
-    /// Description helps describe a GatewayClass with more details.
+    /// `description` helps describe a GatewayClass with more details.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -2870,17 +2870,17 @@ impl GatewayClassSpec {
         }
     }
 }
-/// ParametersReference identifies an API object containing controller-specific
+/// [`ParametersReference`] identifies an API object containing controller-specific
 /// configuration resource within the cluster.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ParametersReference {
-    /// Group is the group of the referent.
+    /// `group` is the group of the referent.
     pub group: Group,
-    /// Kind is kind of the referent.
+    /// `kind` is kind of the referent.
     pub kind: Kind,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: String,
-    /// Namespace is the namespace of the referent.
+    /// `namespace` is the namespace of the referent.
     /// This field is required when referring to a Namespace-scoped resource and
     /// MUST be unset when referring to a Cluster-scoped resource.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2897,7 +2897,7 @@ impl ParametersReference {
         }
     }
 }
-/// GatewayClassConditionType is the type for status conditions on
+/// [`GatewayClassConditionType`] is the type for status conditions on
 /// Gateway resources. This type should be used with the
 /// GatewayClassStatus.Conditions field.
 #[derive(Clone, Debug)]
@@ -3012,7 +3012,7 @@ impl schemars::JsonSchema for GatewayClassConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// GatewayClassConditionReason defines the set of reasons that explain why a
+/// [`GatewayClassConditionReason`] defines the set of reasons that explain why a
 /// particular GatewayClass condition type has been raised.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -3147,10 +3147,10 @@ impl schemars::JsonSchema for GatewayClassConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// GatewayClassStatus is the current status for the GatewayClass.
+/// [`GatewayClassStatus`] is the current status for the GatewayClass.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GatewayClassStatus {
-    /// Conditions is the current status from the controller for
+    /// `conditions` is the current status from the controller for
     /// this GatewayClass.
     ///
     /// Controllers should prefer to publish conditions using values
@@ -3159,12 +3159,12 @@ pub struct GatewayClassStatus {
     /// Default: `{{type: "Accepted", status: "Unknown", message: "Waiting for controller", reason: "Pending", lastTransitionTime: "1970-01-01T00:00:00Z"}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conditions: Option<Vec<Condition>>,
-    /// SupportedFeatures is the set of features the GatewayClass support.
+    /// `supported_features` is the set of features the GatewayClass support.
     /// It MUST be sorted in ascending alphabetical order by the Name key.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedFeatures")]
     pub supported_features: Option<Vec<SupportedFeature>>,
 }
-/// FeatureName is used to describe distinct features that are covered by
+/// [`FeatureName`] is used to describe distinct features that are covered by
 /// conformance tests.
 pub type FeatureName = String;
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
@@ -3177,10 +3177,10 @@ impl SupportedFeature {
         Self { name: name.into() }
     }
 }
-/// GRPCRouteStatus defines the observed state of GRPCRoute.
+/// [`GrpcRouteStatus`] defines the observed state of GRPCRoute.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct GrpcRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -3204,7 +3204,7 @@ impl GrpcRouteStatus {
         }
     }
 }
-/// GRPCRouteSpec defines the desired state of GRPCRoute
+/// [`GrpcRouteSpec`] defines the desired state of GRPCRoute
 #[derive(
     kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default,
 )]
@@ -3226,7 +3226,7 @@ impl GrpcRouteStatus {
     doc = "GRPCRoute provides a way to route gRPC requests. This includes the capability\nto match requests by hostname, gRPC service, gRPC method, or HTTP/2 header.\nFilters can be used to specify additional processing steps. Backends specify\nwhere matching requests will be routed.\n\nGRPCRoute falls under extended support within the Gateway API. Within the\nfollowing specification, the word \"MUST\" indicates that an implementation\nsupporting GRPCRoute must conform to the indicated requirement, but an\nimplementation not supporting this route type need not follow the requirement\nunless explicitly indicated.\n\nImplementations supporting `GRPCRoute` with the `HTTPS` `ProtocolType` MUST\naccept HTTP/2 connections without an initial upgrade from HTTP/1.1, i.e. via\nALPN. If the implementation does not support this, then it MUST set the\n\"Accepted\" condition to \"False\" for the affected listener with a reason of\n\"UnsupportedProtocol\".  Implementations MAY also accept HTTP/2 connections\nwith an upgrade from HTTP/1.\n\nImplementations supporting `GRPCRoute` with the `HTTP` `ProtocolType` MUST\nsupport HTTP/2 over cleartext TCP (h2c,\nhttps://www.rfc-editor.org/rfc/rfc7540#section-3.1) without an initial\nupgrade from HTTP/1.1, i.e. with prior knowledge\n(https://www.rfc-editor.org/rfc/rfc7540#section-3.4). If the implementation\ndoes not support this, then it MUST set the \"Accepted\" condition to \"False\"\nfor the affected listener with a reason of \"UnsupportedProtocol\".\nImplementations MAY also accept HTTP/2 connections with an upgrade from\nHTTP/1, i.e. without prior knowledge."
 )]
 pub struct GrpcRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -3278,7 +3278,7 @@ pub struct GrpcRouteSpec {
     /// generic way to enable other kinds of cross-namespace reference.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// Hostnames defines a set of hostnames to match against the GRPC
+    /// `hostnames` defines a set of hostnames to match against the GRPC
     /// Host header to select a GRPCRoute to process the request. This matches
     /// the RFC 1123 definition of a hostname with 2 notable exceptions:
     ///
@@ -3330,21 +3330,21 @@ pub struct GrpcRouteSpec {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostnames: Option<Vec<Hostname>>,
-    /// Rules are a list of GRPC matchers, filters and actions.
+    /// `rules` are a list of GRPC matchers, filters and actions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<Vec<GrpcRouteRule>>,
 }
-/// GRPCRouteRule defines the semantics for matching a gRPC request based on
+/// [`GrpcRouteRule`] defines the semantics for matching a gRPC request based on
 /// conditions (matches), processing it (filters), and forwarding the request to
 /// an API object (backendRefs).
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GrpcRouteRule {
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
+    /// `name` is the name of the route rule. This name MUST be unique within a Route if it is set.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<SectionName>,
-    /// Matches define conditions used for matching the rule against incoming
+    /// `matches` define conditions used for matching the rule against incoming
     /// gRPC requests. Each match is independent, i.e. this rule will be matched
     /// if **any** one of the matches is satisfied.
     ///
@@ -3395,7 +3395,7 @@ pub struct GrpcRouteRule {
     /// the above criteria.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub matches: Option<Vec<GrpcRouteMatch>>,
-    /// Filters define the filters that are applied to requests that match
+    /// `filters` define the filters that are applied to requests that match
     /// this rule.
     ///
     /// The effects of ordering of multiple behaviors are currently unspecified.
@@ -3421,7 +3421,7 @@ pub struct GrpcRouteRule {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filters: Option<Vec<GrpcRouteFilter>>,
-    /// BackendRefs defines the backend(s) where matching requests should be
+    /// `backend_refs` defines the backend(s) where matching requests should be
     /// sent.
     ///
     /// Failure behavior here depends on how many BackendRefs are specified and
@@ -3452,7 +3452,7 @@ pub struct GrpcRouteRule {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "backendRefs")]
     pub backend_refs: Option<Vec<GrpcBackendRef>>,
 }
-/// GRPCRouteMatch defines the predicate used to match requests to a given
+/// [`GrpcRouteMatch`] defines the predicate used to match requests to a given
 /// action. Multiple match types are ANDed together, i.e. the match will
 /// evaluate to true only if all conditions are satisfied.
 ///
@@ -3470,23 +3470,23 @@ pub struct GrpcRouteRule {
 /// ```
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GrpcRouteMatch {
-    /// Method specifies a gRPC request service/method matcher. If this field is
+    /// `method` specifies a gRPC request service/method matcher. If this field is
     /// not specified, all services and methods will match.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<GrpcMethodMatch>,
-    /// Headers specifies gRPC request header matchers. Multiple match values are
+    /// `headers` specifies gRPC request header matchers. Multiple match values are
     /// ANDed together, meaning, a request MUST match all the specified headers
     /// to select the route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headers: Option<Vec<GrpcHeaderMatch>>,
 }
-/// GRPCMethodMatch describes how to select a gRPC route by matching the gRPC
+/// [`GrpcMethodMatch`] describes how to select a gRPC route by matching the gRPC
 /// request service and/or method.
 ///
 /// At least one of Service and Method MUST be a non-empty string.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct GrpcMethodMatch {
-    /// Type specifies how to match against the service and/or method.
+    /// `type_` specifies how to match against the service and/or method.
     /// Support: Core (Exact with service and method specified)
     ///
     /// Support: Implementation-specific (Exact with method specified but no service specified)
@@ -3624,16 +3624,16 @@ impl Default for GrpcMethodMatchType {
         Self::Exact
     }
 }
-/// GRPCHeaderMatch describes how to select a gRPC route by matching gRPC request
+/// [`GrpcHeaderMatch`] describes how to select a gRPC route by matching gRPC request
 /// headers.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct GrpcHeaderMatch {
-    /// Type specifies how to match against the value of the header.
+    /// `type_` specifies how to match against the value of the header.
     ///
     /// Default: `Exact`.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub type_: Option<GrpcHeaderMatchType>,
-    /// Name is the name of the gRPC Header to be matched.
+    /// `name` is the name of the gRPC Header to be matched.
     ///
     /// If multiple entries specify equivalent header names, only the first
     /// entry with an equivalent name MUST be considered for a match. Subsequent
@@ -3641,7 +3641,7 @@ pub struct GrpcHeaderMatch {
     /// case-insensitivity of header names, "foo" and "Foo" are considered
     /// equivalent.
     pub name: GrpcHeaderName,
-    /// Value is the value of the gRPC Header to be matched.
+    /// `value` is the value of the gRPC Header to be matched.
     pub value: String,
 }
 impl GrpcHeaderMatch {
@@ -3654,7 +3654,7 @@ impl GrpcHeaderMatch {
         }
     }
 }
-/// GRPCHeaderMatchType specifies the semantics of how GRPC header values should
+/// [`GrpcHeaderMatchType`] specifies the semantics of how GRPC header values should
 /// be compared. Valid GRPCHeaderMatchType values, along with their conformance
 /// levels, are:
 ///
@@ -3765,11 +3765,11 @@ impl Default for GrpcHeaderMatchType {
     }
 }
 pub type GrpcHeaderName = String;
-/// GRPCRouteFilterType identifies a type of GRPCRoute filter.
+/// [`GrpcRouteFilterType`] identifies a type of GRPCRoute filter.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum GrpcRouteFilterType {
-    /// GRPCRouteFilterRequestHeaderModifier can be used to add or remove a gRPC
+    /// [`GrpcRouteFilterType::RequestHeaderModifier`] can be used to add or remove a gRPC
     /// header from a gRPC request before it is sent to the upstream target.
     ///
     /// Support in GRPCRouteRule: Core
@@ -3783,7 +3783,7 @@ pub enum GrpcRouteFilterType {
     ///
     /// Support in GRPCBackendRef: Extended
     ResponseHeaderModifier,
-    /// GRPCRouteFilterRequestMirror can be used to mirror gRPC requests to a
+    /// [`GrpcRouteFilterType::RequestMirror`] can be used to mirror gRPC requests to a
     /// different backend. The responses from this backend MUST be ignored by
     /// the Gateway.
     ///
@@ -3791,7 +3791,7 @@ pub enum GrpcRouteFilterType {
     ///
     /// Support in GRPCBackendRef: Extended
     RequestMirror,
-    /// GRPCRouteFilterExtensionRef should be used for configuring custom
+    /// [`GrpcRouteFilterType::ExtensionRef`] should be used for configuring custom
     /// gRPC filters.
     ///
     /// Support in GRPCRouteRule: Implementation-specific
@@ -3892,7 +3892,7 @@ impl schemars::JsonSchema for GrpcRouteFilterType {
         )
     }
 }
-/// GRPCRouteFilter defines processing steps that must be completed during the
+/// [`GrpcRouteFilter`] defines processing steps that must be completed during the
 /// request or response lifecycle. GRPCRouteFilters are meant as an extension
 /// point to express processing that may be done in Gateway implementations. Some
 /// examples include request or response modification, implementing
@@ -3900,7 +3900,7 @@ impl schemars::JsonSchema for GrpcRouteFilterType {
 /// guarantee/conformance is defined based on the type of the filter.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct GrpcRouteFilter {
-    /// Type identifies the type of filter to apply. As with other API fields,
+    /// `type_` identifies the type of filter to apply. As with other API fields,
     /// types are classified into three conformance levels:
     ///
     /// - Core: Filter types and their corresponding configuration defined by
@@ -3926,19 +3926,19 @@ pub struct GrpcRouteFilter {
     /// that filter MUST receive a HTTP error response.
     #[serde(rename = "type")]
     pub type_: GrpcRouteFilterType,
-    /// RequestHeaderModifier defines a schema for a filter that modifies request
+    /// `request_header_modifier` defines a schema for a filter that modifies request
     /// headers.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestHeaderModifier")]
     pub request_header_modifier: Option<HttpHeaderFilter>,
-    /// ResponseHeaderModifier defines a schema for a filter that modifies response
+    /// `response_header_modifier` defines a schema for a filter that modifies response
     /// headers.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "responseHeaderModifier")]
     pub response_header_modifier: Option<HttpHeaderFilter>,
-    /// RequestMirror defines a schema for a filter that mirrors requests.
+    /// `request_mirror` defines a schema for a filter that mirrors requests.
     /// Requests are sent to the specified destination, but responses from
     /// that destination are ignored.
     ///
@@ -3949,7 +3949,7 @@ pub struct GrpcRouteFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestMirror")]
     pub request_mirror: Option<HttpRequestMirrorFilter>,
-    /// ExtensionRef is an optional, implementation-specific extension to the
+    /// `extension_ref` is an optional, implementation-specific extension to the
     /// "filter" behavior.  For example, resource "myroutefilter" in group
     /// "networking.example.net"). ExtensionRef MUST NOT be used for core and
     /// extended filters.
@@ -3972,7 +3972,7 @@ impl GrpcRouteFilter {
         }
     }
 }
-/// GRPCBackendRef defines how a GRPCRoute forwards a gRPC request.
+/// [`GrpcBackendRef`] defines how a GRPCRoute forwards a gRPC request.
 ///
 /// Note that when a namespace different than the local namespace is specified, a
 /// ReferenceGrant object is required in the referent namespace to allow that
@@ -3980,13 +3980,13 @@ impl GrpcRouteFilter {
 /// documentation for details.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct GrpcBackendRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     ///
     /// Default: `""`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is the Kubernetes resource kind of the referent. For example
+    /// `kind` is the Kubernetes resource kind of the referent. For example
     /// "Service".
     ///
     /// Defaults to "Service" when not specified.
@@ -4004,9 +4004,9 @@ pub struct GrpcBackendRef {
     /// Default: `Service`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the backend. When unspecified, the local
+    /// `namespace` is the namespace of the backend. When unspecified, the local
     /// namespace is inferred.
     ///
     /// Note that when a namespace different than the local namespace is specified,
@@ -4017,14 +4017,14 @@ pub struct GrpcBackendRef {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<Namespace>,
-    /// Port specifies the destination port number to use for this resource.
+    /// `port` specifies the destination port number to use for this resource.
     /// Port is required when the referent is a Kubernetes Service. In this
     /// case, the port number is the service port number, not the target port.
     /// For other resources, destination port might be derived from the referent
     /// resource or this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<PortNumber>,
-    /// Weight specifies the proportion of requests forwarded to the referenced
+    /// `weight` specifies the proportion of requests forwarded to the referenced
     /// backend. This is computed as weight/(sum of all weights in this
     /// BackendRefs list). For non-zero values, there may be some epsilon from
     /// the exact proportion defined here depending on the precision an
@@ -4041,7 +4041,7 @@ pub struct GrpcBackendRef {
     /// Default: `1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weight: Option<i32>,
-    /// Filters defined at this level MUST be executed if and only if the
+    /// `filters` defined at this level MUST be executed if and only if the
     /// request is being forwarded to the backend defined here.
     ///
     /// Support: Implementation-specific (For broader support of filters, use the
@@ -4063,7 +4063,7 @@ impl GrpcBackendRef {
         }
     }
 }
-/// HTTPRouteSpec defines the desired state of HTTPRoute
+/// [`HttpRouteSpec`] defines the desired state of HTTPRoute
 #[derive(
     kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default,
 )]
@@ -4085,7 +4085,7 @@ impl GrpcBackendRef {
     doc = "HTTPRoute provides a way to route HTTP requests. This includes the capability\nto match requests by hostname, path, header, or query param. Filters can be\nused to specify additional processing steps. Backends specify where matching\nrequests should be routed."
 )]
 pub struct HttpRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -4137,7 +4137,7 @@ pub struct HttpRouteSpec {
     /// generic way to enable other kinds of cross-namespace reference.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// Hostnames defines a set of hostnames that should match against the HTTP Host
+    /// `hostnames` defines a set of hostnames that should match against the HTTP Host
     /// header to select a HTTPRoute used to process the request. Implementations
     /// MUST ignore any port value specified in the HTTP Host header while
     /// performing a match and (absent of any applicable header modification
@@ -4192,23 +4192,23 @@ pub struct HttpRouteSpec {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostnames: Option<Vec<Hostname>>,
-    /// Rules are a list of HTTP matchers, filters and actions.
+    /// `rules` are a list of HTTP matchers, filters and actions.
     ///
     /// Default: `{{matches: {{path: {type: "PathPrefix", value: "/"}}}}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rules: Option<Vec<HttpRouteRule>>,
 }
-/// HTTPRouteRule defines semantics for matching an HTTP request based on
+/// [`HttpRouteRule`] defines semantics for matching an HTTP request based on
 /// conditions (matches), processing it (filters), and forwarding the request to
 /// an API object (backendRefs).
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpRouteRule {
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
+    /// `name` is the name of the route rule. This name MUST be unique within a Route if it is set.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<SectionName>,
-    /// Matches define conditions used for matching the rule against incoming
+    /// `matches` define conditions used for matching the rule against incoming
     /// HTTP requests. Each match is independent, i.e. this rule will be matched
     /// if **any** one of the matches is satisfied.
     ///
@@ -4268,7 +4268,7 @@ pub struct HttpRouteRule {
     /// Default: `{{path:{ type: "PathPrefix", value: "/"}}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub matches: Option<Vec<HttpRouteMatch>>,
-    /// Filters define the filters that are applied to requests that match
+    /// `filters` define the filters that are applied to requests that match
     /// this rule.
     ///
     /// Wherever possible, implementations SHOULD implement filters in the order
@@ -4306,7 +4306,7 @@ pub struct HttpRouteRule {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filters: Option<Vec<HttpRouteFilter>>,
-    /// BackendRefs defines the backend(s) where matching requests should be
+    /// `backend_refs` defines the backend(s) where matching requests should be
     /// sent.
     ///
     /// Failure behavior here depends on how many BackendRefs are specified and
@@ -4343,17 +4343,17 @@ pub struct HttpRouteRule {
     /// Support for weight: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "backendRefs")]
     pub backend_refs: Option<Vec<HttpBackendRef>>,
-    /// Timeouts defines the timeouts that can be configured for an HTTP request.
+    /// `timeouts` defines the timeouts that can be configured for an HTTP request.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeouts: Option<HttpRouteTimeouts>,
 }
-/// HTTPRouteTimeouts defines timeouts that can be configured for an HTTPRoute.
+/// [`HttpRouteTimeouts`] defines timeouts that can be configured for an HTTPRoute.
 /// Timeout values are represented with Gateway API Duration formatting.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpRouteTimeouts {
-    /// Request specifies the maximum duration for a gateway to respond to an HTTP request.
+    /// `request` specifies the maximum duration for a gateway to respond to an HTTP request.
     /// If the gateway has not been able to respond before this deadline is met, the gateway
     /// MUST return a timeout error.
     ///
@@ -4377,7 +4377,7 @@ pub struct HttpRouteTimeouts {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request: Option<Duration>,
-    /// BackendRequest specifies a timeout for an individual request from the gateway
+    /// `backend_request` specifies a timeout for an individual request from the gateway
     /// to a backend. This covers the time from when the request first starts being
     /// sent from the gateway to when the full response has been received from the backend.
     ///
@@ -4399,7 +4399,7 @@ pub struct HttpRouteTimeouts {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "backendRequest")]
     pub backend_request: Option<Duration>,
 }
-/// PathMatchType specifies the semantics of how HTTP paths should be compared.
+/// [`PathMatchType`] specifies the semantics of how HTTP paths should be compared.
 /// Valid PathMatchType values, along with their support levels, are:
 ///
 /// * "Exact" - Core
@@ -4539,10 +4539,10 @@ impl Default for PathMatchType {
         Self::PathPrefix
     }
 }
-/// HTTPPathMatch describes how to select a HTTP route by matching the HTTP request path.
+/// [`HttpPathMatch`] describes how to select a HTTP route by matching the HTTP request path.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpPathMatch {
-    /// Type specifies how to match against the path Value.
+    /// `type_` specifies how to match against the path Value.
     ///
     /// Support: Core (Exact, PathPrefix)
     ///
@@ -4551,13 +4551,13 @@ pub struct HttpPathMatch {
     /// Default: `PathPrefix`.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub type_: Option<PathMatchType>,
-    /// Value of the HTTP path to match against.
+    /// `value` of the HTTP path to match against.
     ///
     /// Default: `"/"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
 }
-/// HeaderMatchType specifies the semantics of how HTTP header values should be
+/// [`HeaderMatchType`] specifies the semantics of how HTTP header values should be
 /// compared. Valid HeaderMatchType values, along with their conformance levels, are:
 ///
 /// * "Exact" - Core
@@ -4666,7 +4666,7 @@ impl Default for HeaderMatchType {
         Self::Exact
     }
 }
-/// HTTPHeaderName is the name of an HTTP header.
+/// [`HttpHeaderName`] is the name of an HTTP header.
 ///
 /// Valid values include:
 ///
@@ -4679,11 +4679,11 @@ impl Default for HeaderMatchType {
 ///     headers are not currently supported by this type.
 ///   - "/invalid" - "/ " is an invalid character
 pub type HttpHeaderName = String;
-/// HTTPHeaderMatch describes how to select a HTTP route by matching HTTP request
+/// [`HttpHeaderMatch`] describes how to select a HTTP route by matching HTTP request
 /// headers.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpHeaderMatch {
-    /// Type specifies how to match against the value of the header.
+    /// `type_` specifies how to match against the value of the header.
     ///
     /// Support: Core (Exact)
     ///
@@ -4697,7 +4697,7 @@ pub struct HttpHeaderMatch {
     /// Default: `Exact`.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub type_: Option<HeaderMatchType>,
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
+    /// `name` is the name of the HTTP Header to be matched. Name matching MUST be
     /// case-insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
     ///
     /// If multiple entries specify equivalent header names, only the first
@@ -4712,7 +4712,7 @@ pub struct HttpHeaderMatch {
     /// https://www.rfc-editor.org/rfc/rfc7230.html#section-3.2.2 regarding
     /// processing a repeated header, with special handling for "Set-Cookie".
     pub name: HttpHeaderName,
-    /// Value is the value of HTTP Header to be matched.
+    /// `value` is the value of HTTP Header to be matched.
     pub value: String,
 }
 impl HttpHeaderMatch {
@@ -4725,7 +4725,7 @@ impl HttpHeaderMatch {
         }
     }
 }
-/// QueryParamMatchType specifies the semantics of how HTTP query parameter
+/// [`QueryParamMatchType`] specifies the semantics of how HTTP query parameter
 /// values should be compared. Valid QueryParamMatchType values, along with their
 /// conformance levels, are:
 ///
@@ -4835,11 +4835,11 @@ impl Default for QueryParamMatchType {
         Self::Exact
     }
 }
-/// HTTPQueryParamMatch describes how to select a HTTP route by matching HTTP
+/// [`HttpQueryParamMatch`] describes how to select a HTTP route by matching HTTP
 /// query parameters.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpQueryParamMatch {
-    /// Type specifies how to match against the value of the query parameter.
+    /// `type_` specifies how to match against the value of the query parameter.
     ///
     /// Support: Extended (Exact)
     ///
@@ -4853,7 +4853,7 @@ pub struct HttpQueryParamMatch {
     /// Default: `Exact`.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "type")]
     pub type_: Option<QueryParamMatchType>,
-    /// Name is the name of the HTTP query param to be matched. This must be an
+    /// `name` is the name of the HTTP query param to be matched. This must be an
     /// exact string match. (See
     /// https://tools.ietf.org/html/rfc7230#section-2.7.3).
     ///
@@ -4871,7 +4871,7 @@ pub struct HttpQueryParamMatch {
     /// Users SHOULD NOT route traffic based on repeated query params to guard
     /// themselves against potential differences in the implementations.
     pub name: HttpHeaderName,
-    /// Value is the value of HTTP query param to be matched.
+    /// `value` is the value of HTTP query param to be matched.
     pub value: String,
 }
 impl HttpQueryParamMatch {
@@ -4884,7 +4884,7 @@ impl HttpQueryParamMatch {
         }
     }
 }
-/// HTTPMethod describes how to select a HTTP route by matching the HTTP
+/// [`HttpMethod`] describes how to select a HTTP route by matching the HTTP
 /// method as defined by
 /// [RFC 7231](https://datatracker.ietf.org/doc/html/rfc7231#section-4) and
 /// [RFC 5789](https://datatracker.ietf.org/doc/html/rfc5789#section-2).
@@ -5142,7 +5142,7 @@ impl schemars::JsonSchema for HttpMethodWithWildcard {
         )
     }
 }
-/// HTTPRouteMatch defines the predicate used to match requests to a given
+/// [`HttpRouteMatch`] defines the predicate used to match requests to a given
 /// action. Multiple match types are ANDed together, i.e. the match will
 /// evaluate to true only if all conditions are satisfied.
 ///
@@ -5160,25 +5160,25 @@ impl schemars::JsonSchema for HttpMethodWithWildcard {
 /// ```
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpRouteMatch {
-    /// Path specifies a HTTP request path matcher. If this field is not
+    /// `path` specifies a HTTP request path matcher. If this field is not
     /// specified, a default prefix match on the "/" path is provided.
     ///
     /// Default: `{type: "PathPrefix", value: "/"}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<HttpPathMatch>,
-    /// Headers specifies HTTP request header matchers. Multiple match values are
+    /// `headers` specifies HTTP request header matchers. Multiple match values are
     /// ANDed together, meaning, a request must match all the specified headers
     /// to select the route.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub headers: Option<Vec<HttpHeaderMatch>>,
-    /// QueryParams specifies HTTP query parameter matchers. Multiple match
+    /// `query_params` specifies HTTP query parameter matchers. Multiple match
     /// values are ANDed together, meaning, a request must match all the
     /// specified query parameters to select the route.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "queryParams")]
     pub query_params: Option<Vec<HttpQueryParamMatch>>,
-    /// Method specifies HTTP method matcher.
+    /// `method` specifies HTTP method matcher.
     /// When specified, this route will be matched only if the request has the
     /// specified method.
     ///
@@ -5186,7 +5186,7 @@ pub struct HttpRouteMatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<HttpMethod>,
 }
-/// HTTPRouteFilter defines processing steps that must be completed during the
+/// [`HttpRouteFilter`] defines processing steps that must be completed during the
 /// request or response lifecycle. HTTPRouteFilters are meant as an extension
 /// point to express processing that may be done in Gateway implementations. Some
 /// examples include request or response modification, implementing
@@ -5194,7 +5194,7 @@ pub struct HttpRouteMatch {
 /// guarantee/conformance is defined based on the type of the filter.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpRouteFilter {
-    /// Type identifies the type of filter to apply. As with other API fields,
+    /// `type_` identifies the type of filter to apply. As with other API fields,
     /// types are classified into three conformance levels:
     ///
     /// - Core: Filter types and their corresponding configuration defined by
@@ -5228,19 +5228,19 @@ pub struct HttpRouteFilter {
     /// Reason of `UnsupportedValue`.
     #[serde(rename = "type")]
     pub type_: HttpRouteFilterType,
-    /// RequestHeaderModifier defines a schema for a filter that modifies request
+    /// `request_header_modifier` defines a schema for a filter that modifies request
     /// headers.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestHeaderModifier")]
     pub request_header_modifier: Option<HttpHeaderFilter>,
-    /// ResponseHeaderModifier defines a schema for a filter that modifies response
+    /// `response_header_modifier` defines a schema for a filter that modifies response
     /// headers.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "responseHeaderModifier")]
     pub response_header_modifier: Option<HttpHeaderFilter>,
-    /// RequestMirror defines a schema for a filter that mirrors requests.
+    /// `request_mirror` defines a schema for a filter that mirrors requests.
     /// Requests are sent to the specified destination, but responses from
     /// that destination are ignored.
     ///
@@ -5251,24 +5251,24 @@ pub struct HttpRouteFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestMirror")]
     pub request_mirror: Option<HttpRequestMirrorFilter>,
-    /// RequestRedirect defines a schema for a filter that responds to the
+    /// `request_redirect` defines a schema for a filter that responds to the
     /// request with an HTTP redirection.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "requestRedirect")]
     pub request_redirect: Option<HttpRequestRedirectFilter>,
-    /// URLRewrite defines a schema for a filter that modifies a request during forwarding.
+    /// `url_rewrite` defines a schema for a filter that modifies a request during forwarding.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "urlRewrite")]
     pub url_rewrite: Option<HttpUrlRewriteFilter>,
-    /// CORS defines a schema for a filter that responds to the
+    /// `cors` defines a schema for a filter that responds to the
     /// cross-origin request based on HTTP response header.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cors: Option<HttpCorsFilter>,
-    /// ExtensionRef is an optional, implementation-specific extension to the
+    /// `extension_ref` is an optional, implementation-specific extension to the
     /// "filter" behavior.  For example, resource "myroutefilter" in group
     /// "networking.example.net"). ExtensionRef MUST NOT be used for core and
     /// extended filters.
@@ -5294,25 +5294,25 @@ impl HttpRouteFilter {
         }
     }
 }
-/// HTTPRouteFilterType identifies a type of HTTPRoute filter.
+/// [`HttpRouteFilterType`] identifies a type of HTTPRoute filter.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum HttpRouteFilterType {
-    /// HTTPRouteFilterRequestHeaderModifier can be used to add or remove an HTTP
+    /// [`HttpRouteFilterType::RequestHeaderModifier`] can be used to add or remove an HTTP
     /// header from an HTTP request before it is sent to the upstream target.
     ///
     /// Support in HTTPRouteRule: Core
     ///
     /// Support in HTTPBackendRef: Extended
     RequestHeaderModifier,
-    /// HTTPRouteFilterResponseHeaderModifier can be used to add or remove an HTTP
+    /// [`HttpRouteFilterType::ResponseHeaderModifier`] can be used to add or remove an HTTP
     /// header from an HTTP response before it is sent to the client.
     ///
     /// Support in HTTPRouteRule: Extended
     ///
     /// Support in HTTPBackendRef: Extended
     ResponseHeaderModifier,
-    /// HTTPRouteFilterRequestRedirect can be used to redirect a request to
+    /// [`HttpRouteFilterType::RequestRedirect`] can be used to redirect a request to
     /// another location. This filter can also be used for HTTP to HTTPS
     /// redirects. This may not be used on the same Route rule or BackendRef as a
     /// URLRewrite filter.
@@ -5321,7 +5321,7 @@ pub enum HttpRouteFilterType {
     ///
     /// Support in HTTPBackendRef: Extended
     RequestRedirect,
-    /// HTTPRouteFilterURLRewrite can be used to modify a request during
+    /// [`HttpRouteFilterType::UrlRewrite`] can be used to modify a request during
     /// forwarding. At most one of these filters may be used on a Route rule.
     /// This may not be used on the same Route rule or BackendRef as a
     /// RequestRedirect filter.
@@ -5330,7 +5330,7 @@ pub enum HttpRouteFilterType {
     ///
     /// Support in HTTPBackendRef: Extended
     UrlRewrite,
-    /// HTTPRouteFilterRequestMirror can be used to mirror HTTP requests to a
+    /// [`HttpRouteFilterType::RequestMirror`] can be used to mirror HTTP requests to a
     /// different backend. The responses from this backend MUST be ignored by
     /// the Gateway.
     ///
@@ -5338,14 +5338,14 @@ pub enum HttpRouteFilterType {
     ///
     /// Support in HTTPBackendRef: Extended
     RequestMirror,
-    /// HTTPRouteFilterCORS can be used to add CORS headers to an
+    /// [`HttpRouteFilterType::Cors`] can be used to add CORS headers to an
     /// HTTP response before it is sent to the client.
     ///
     /// Support in HTTPRouteRule: Extended
     ///
     /// Support in HTTPBackendRef: Extended
     Cors,
-    /// HTTPRouteFilterExtensionRef should be used for configuring custom
+    /// [`HttpRouteFilterType::ExtensionRef`] should be used for configuring custom
     /// HTTP filters.
     ///
     /// Support in HTTPRouteRule: Implementation-specific
@@ -5456,10 +5456,10 @@ impl schemars::JsonSchema for HttpRouteFilterType {
         )
     }
 }
-/// HTTPHeader represents an HTTP Header name and value as defined by RFC 7230.
+/// [`HttpHeader`] represents an HTTP Header name and value as defined by RFC 7230.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpHeader {
-    /// Name is the name of the HTTP Header to be matched. Name matching MUST be
+    /// `name` is the name of the HTTP Header to be matched. Name matching MUST be
     /// case-insensitive. (See https://tools.ietf.org/html/rfc7230#section-3.2).
     ///
     /// If multiple entries specify equivalent header names, the first entry with
@@ -5468,7 +5468,7 @@ pub struct HttpHeader {
     /// case-insensitivity of header names, "foo" and "Foo" are considered
     /// equivalent.
     pub name: HttpHeaderName,
-    /// Value is the value of HTTP Header to be matched.
+    /// `value` is the value of HTTP Header to be matched.
     pub value: String,
 }
 impl HttpHeader {
@@ -5480,7 +5480,7 @@ impl HttpHeader {
         }
     }
 }
-/// HTTPHeaderFilter defines a filter that modifies the headers of an HTTP
+/// [`HttpHeaderFilter`] defines a filter that modifies the headers of an HTTP
 /// request or response. Only one action for a given header name is
 /// permitted. Filters specifying multiple actions of the same or different
 /// type for any one header name are invalid. Configuration to set or add
@@ -5488,7 +5488,7 @@ impl HttpHeader {
 /// separating each value with a comma.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpHeaderFilter {
-    /// Set overwrites the request with the given header (name, value)
+    /// `set` overwrites the request with the given header (name, value)
     /// before the action.
     ///
     /// Input:
@@ -5505,7 +5505,7 @@ pub struct HttpHeaderFilter {
     ///   my-header: bar
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub set: Option<Vec<HttpHeader>>,
-    /// Add adds the given header(s) (name, value) to the request
+    /// `add` adds the given header(s) (name, value) to the request
     /// before the action. It appends to any existing values associated
     /// with the header name.
     ///
@@ -5523,7 +5523,7 @@ pub struct HttpHeaderFilter {
     ///   my-header: foo,bar,baz
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub add: Option<Vec<HttpHeader>>,
-    /// Remove the given header(s) from the HTTP request before the action. The
+    /// `remove` the given header(s) from the HTTP request before the action. The
     /// value of Remove is a list of HTTP header names. Note that the header
     /// names are case-insensitive (see
     /// https://datatracker.ietf.org/doc/html/rfc2616#section-4.2).
@@ -5543,7 +5543,7 @@ pub struct HttpHeaderFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remove: Option<Vec<String>>,
 }
-/// HTTPPathModifierType defines the type of path redirect or rewrite.
+/// [`HttpPathModifierType`] defines the type of path redirect or rewrite.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum HttpPathModifierType {
@@ -5648,10 +5648,10 @@ impl schemars::JsonSchema for HttpPathModifierType {
         )
     }
 }
-/// HTTPPathModifier defines configuration for path modifiers.
+/// [`HttpPathModifier`] defines configuration for path modifiers.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpPathModifier {
-    /// Type defines the type of path modifier. Additional types may be
+    /// `type_` defines the type of path modifier. Additional types may be
     /// added in a future release of the API.
     ///
     /// Note that values may be added to this enum, implementations
@@ -5662,11 +5662,11 @@ pub struct HttpPathModifier {
     /// Reason of `UnsupportedValue`.
     #[serde(rename = "type")]
     pub type_: HttpPathModifierType,
-    /// ReplaceFullPath specifies the value with which to replace the full path
+    /// `replace_full_path` specifies the value with which to replace the full path
     /// of a request during a rewrite or redirect.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "replaceFullPath")]
     pub replace_full_path: Option<String>,
-    /// ReplacePrefixMatch specifies the value with which to replace the prefix
+    /// `replace_prefix_match` specifies the value with which to replace the prefix
     /// match of a request during a rewrite or redirect. For example, a request
     /// to "/foo/bar" with a prefix match of "/foo" and a ReplacePrefixMatch
     /// of "/xyz" would be modified to "/xyz/bar".
@@ -5711,7 +5711,7 @@ impl HttpPathModifier {
 /// MUST NOT be used on the same Route rule as a HTTPURLRewrite filter.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpRequestRedirectFilter {
-    /// Scheme is the scheme to be used in the value of the `Location` header in
+    /// `scheme` is the scheme to be used in the value of the `Location` header in
     /// the response. When empty, the scheme of the request is used.
     ///
     /// Scheme redirects can affect the port of the redirect, for more information,
@@ -5730,21 +5730,21 @@ pub struct HttpRequestRedirectFilter {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(extend("enum" = ["http", "https"]))]
     pub scheme: Option<String>,
-    /// Hostname is the hostname to be used in the value of the `Location`
+    /// `hostname` is the hostname to be used in the value of the `Location`
     /// header in the response.
     /// When empty, the hostname in the `Host` header of the request is used.
     ///
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<PreciseHostname>,
-    /// Path defines parameters used to modify the path of the incoming request.
+    /// `path` defines parameters used to modify the path of the incoming request.
     /// The modified path is then used to construct the `Location` header. When
     /// empty, the request path is used as-is.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<HttpPathModifier>,
-    /// Port is the port to be used in the value of the `Location`
+    /// `port` is the port to be used in the value of the `Location`
     /// header in the response.
     ///
     /// If no port is specified, the redirect port MUST be derived using the
@@ -5768,7 +5768,7 @@ pub struct HttpRequestRedirectFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<PortNumber>,
-    /// StatusCode is the HTTP status code to be used in response.
+    /// `status_code` is the HTTP status code to be used in response.
     ///
     /// Note that values may be added to this enum, implementations
     /// must ensure that unknown values will not cause a crash.
@@ -5786,29 +5786,29 @@ pub struct HttpRequestRedirectFilter {
     #[schemars(extend("enum" = [301, 302, 303, 307, 308]))]
     pub status_code: Option<i64>,
 }
-/// HTTPURLRewriteFilter defines a filter that modifies a request during
+/// [`HttpUrlRewriteFilter`] defines a filter that modifies a request during
 /// forwarding. At most one of these filters may be used on a Route rule. This
 /// MUST NOT be used on the same Route rule as a HTTPRequestRedirect filter.
 ///
 /// Support: Extended
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpUrlRewriteFilter {
-    /// Hostname is the value to be used to replace the Host header value during
+    /// `hostname` is the value to be used to replace the Host header value during
     /// forwarding.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<PreciseHostname>,
-    /// Path defines a path rewrite.
+    /// `path` defines a path rewrite.
     ///
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<HttpPathModifier>,
 }
-/// HTTPRequestMirrorFilter defines configuration for the RequestMirror filter.
+/// [`HttpRequestMirrorFilter`] defines configuration for the RequestMirror filter.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpRequestMirrorFilter {
-    /// BackendRef references a resource where mirrored requests are sent.
+    /// `backend_ref` references a resource where mirrored requests are sent.
     ///
     /// Mirrored requests must be sent only to a single destination endpoint
     /// within this BackendRef, irrespective of how many endpoints are present
@@ -5833,7 +5833,7 @@ pub struct HttpRequestMirrorFilter {
     /// Support: Implementation-specific for any other resource
     #[serde(rename = "backendRef")]
     pub backend_ref: BackendObjectReference,
-    /// Percent represents the percentage of requests that should be
+    /// `percent` represents the percentage of requests that should be
     /// mirrored to BackendRef. Its minimum value is 0 (indicating 0% of
     /// requests) and its maximum value is 100 (indicating 100% of requests).
     ///
@@ -5841,7 +5841,7 @@ pub struct HttpRequestMirrorFilter {
     /// is specified, 100% of requests will be mirrored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub percent: Option<i32>,
-    /// Fraction represents the fraction of requests that should be
+    /// `fraction` represents the fraction of requests that should be
     /// mirrored to BackendRef.
     ///
     /// Only one of Fraction or Percent may be specified. If neither field
@@ -5859,11 +5859,11 @@ impl HttpRequestMirrorFilter {
         }
     }
 }
-/// HTTPCORSFilter defines a filter that that configures Cross-Origin Request
+/// [`HttpCorsFilter`] defines a filter that that configures Cross-Origin Request
 /// Sharing (CORS).
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct HttpCorsFilter {
-    /// AllowOrigins indicates whether the response can be shared with requested
+    /// `allow_origins` indicates whether the response can be shared with requested
     /// resource from the given `Origin`.
     ///
     /// The `Origin` consists of a scheme and a host, with an optional port, and
@@ -5927,7 +5927,7 @@ pub struct HttpCorsFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowOrigins")]
     pub allow_origins: Option<Vec<CorsOrigin>>,
-    /// AllowCredentials indicates whether the actual cross-origin request allows
+    /// `allow_credentials` indicates whether the actual cross-origin request allows
     /// to include credentials.
     ///
     /// When set to true, the gateway will include the `Access-Control-Allow-Credentials`
@@ -5940,7 +5940,7 @@ pub struct HttpCorsFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowCredentials")]
     pub allow_credentials: Option<bool>,
-    /// AllowMethods indicates which HTTP methods are supported for accessing the
+    /// `allow_methods` indicates which HTTP methods are supported for accessing the
     /// requested resource.
     ///
     /// Valid values are any method defined by RFC9110, along with the special
@@ -5985,7 +5985,7 @@ pub struct HttpCorsFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowMethods")]
     pub allow_methods: Option<Vec<HttpMethodWithWildcard>>,
-    /// AllowHeaders indicates which HTTP request headers are supported for
+    /// `allow_headers` indicates which HTTP request headers are supported for
     /// accessing the requested resource.
     ///
     /// Header names are not case-sensitive.
@@ -6026,7 +6026,7 @@ pub struct HttpCorsFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "allowHeaders")]
     pub allow_headers: Option<Vec<HttpHeaderName>>,
-    /// ExposeHeaders indicates which HTTP response headers can be exposed
+    /// `expose_headers` indicates which HTTP response headers can be exposed
     /// to client-side scripts in response to a cross-origin request.
     ///
     /// A CORS-safelisted response header is an HTTP header in a CORS response
@@ -6062,7 +6062,7 @@ pub struct HttpCorsFilter {
     /// Support: Extended
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "exposeHeaders")]
     pub expose_headers: Option<Vec<HttpHeaderName>>,
-    /// MaxAge indicates the duration (in seconds) for the client to cache the
+    /// `max_age` indicates the duration (in seconds) for the client to cache the
     /// results of a "preflight" request.
     ///
     /// The information provided by the `Access-Control-Allow-Methods` and
@@ -6079,7 +6079,7 @@ pub struct HttpCorsFilter {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "maxAge")]
     pub max_age: Option<i32>,
 }
-/// HTTPBackendRef defines how a HTTPRoute forwards a HTTP request.
+/// [`HttpBackendRef`] defines how a HTTPRoute forwards a HTTP request.
 ///
 /// Note that when a namespace different than the local namespace is specified, a
 /// ReferenceGrant object is required in the referent namespace to allow that
@@ -6087,13 +6087,13 @@ pub struct HttpCorsFilter {
 /// documentation for details.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpBackendRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     ///
     /// Default: `""`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is the Kubernetes resource kind of the referent. For example
+    /// `kind` is the Kubernetes resource kind of the referent. For example
     /// "Service".
     ///
     /// Defaults to "Service" when not specified.
@@ -6111,9 +6111,9 @@ pub struct HttpBackendRef {
     /// Default: `Service`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the backend. When unspecified, the local
+    /// `namespace` is the namespace of the backend. When unspecified, the local
     /// namespace is inferred.
     ///
     /// Note that when a namespace different than the local namespace is specified,
@@ -6124,14 +6124,14 @@ pub struct HttpBackendRef {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<Namespace>,
-    /// Port specifies the destination port number to use for this resource.
+    /// `port` specifies the destination port number to use for this resource.
     /// Port is required when the referent is a Kubernetes Service. In this
     /// case, the port number is the service port number, not the target port.
     /// For other resources, destination port might be derived from the referent
     /// resource or this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<PortNumber>,
-    /// Weight specifies the proportion of requests forwarded to the referenced
+    /// `weight` specifies the proportion of requests forwarded to the referenced
     /// backend. This is computed as weight/(sum of all weights in this
     /// BackendRefs list). For non-zero values, there may be some epsilon from
     /// the exact proportion defined here depending on the precision an
@@ -6148,7 +6148,7 @@ pub struct HttpBackendRef {
     /// Default: `1`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weight: Option<i32>,
-    /// Filters defined at this level should be executed if and only if the
+    /// `filters` defined at this level should be executed if and only if the
     /// request is being forwarded to the backend defined here.
     ///
     /// Support: Implementation-specific (For broader support of filters, use the
@@ -6170,10 +6170,10 @@ impl HttpBackendRef {
         }
     }
 }
-/// HTTPRouteStatus defines the observed state of HTTPRoute.
+/// [`HttpRouteStatus`] defines the observed state of HTTPRoute.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct HttpRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -6197,7 +6197,7 @@ impl HttpRouteStatus {
         }
     }
 }
-/// ListenerSetSpec defines the desired state of a ListenerSet.
+/// [`ListenerSetSpec`] defines the desired state of a ListenerSet.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
     group = "gateway.networking.k8s.io",
@@ -6226,10 +6226,10 @@ impl HttpRouteStatus {
     doc = "ListenerSet defines a set of additional listeners to attach to an existing Gateway.\nThis resource provides a mechanism to merge multiple listeners into a single Gateway.\n\nThe parent Gateway must explicitly allow ListenerSet attachment through its\nAllowedListeners configuration. By default, Gateways do not allow ListenerSet\nattachment.\n\nRoutes can attach to a ListenerSet by specifying it as a parentRef, and can\noptionally target specific listeners using the sectionName field.\n\nPolicy Attachment:\n- Policies that attach to a ListenerSet apply to all listeners defined in that resource\n- Policies do not impact listeners in the parent Gateway\n- Different ListenerSets attached to the same Gateway can have different policies\n- If an implementation cannot apply a policy to specific listeners, it should reject the policy\n\nReferenceGrant Semantics:\n- ReferenceGrants applied to a Gateway are not inherited by child ListenerSets\n- ReferenceGrants applied to a ListenerSet do not grant permission to the parent Gateway's listeners\n- A ListenerSet can reference secrets/backends in its own namespace without a ReferenceGrant\n\nGateway Integration:\n  - The parent Gateway's status will include \"AttachedListenerSets\"\n    which is the count of ListenerSets that have successfully attached to a Gateway\n    A ListenerSet is successfully attached to a Gateway when all the following conditions are met:\n  - The ListenerSet is selected by the Gateway's AllowedListeners field\n  - The ListenerSet has a valid ParentRef selecting the Gateway\n  - The ListenerSet's status has the condition \"Accepted: true\""
 )]
 pub struct ListenerSetSpec {
-    /// ParentRef references the Gateway that the listeners are attached to.
+    /// `parent_ref` references the Gateway that the listeners are attached to.
     #[serde(rename = "parentRef")]
     pub parent_ref: ParentGatewayReference,
-    /// Listeners associated with this ListenerSet. Listeners define
+    /// `listeners` associated with this ListenerSet. Listeners define
     /// logical endpoints that are bound on this referenced parent Gateway's addresses.
     ///
     /// Listeners in a `Gateway` and their attached `ListenerSets` are concatenated
@@ -6268,14 +6268,14 @@ impl ListenerSetSpec {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ListenerEntry {
-    /// Name is the name of the Listener. This name MUST be unique within a
+    /// `name` is the name of the Listener. This name MUST be unique within a
     /// ListenerSet.
     ///
     /// Name is not required to be unique across a Gateway and ListenerSets.
     /// Routes can attach to a Listener by having a ListenerSet as a parentRef
     /// and setting the SectionName
     pub name: SectionName,
-    /// Hostname specifies the virtual hostname to match for protocol types that
+    /// `hostname` specifies the virtual hostname to match for protocol types that
     /// define this concept. When unspecified, all hostnames are matched. This
     /// field is ignored for protocols that don't require hostname based
     /// matching.
@@ -6301,12 +6301,12 @@ pub struct ListenerEntry {
     /// both `test.example.com`, and `foo.test.example.com`, but not `example.com`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hostname: Option<Hostname>,
-    /// Port is the network port. Multiple listeners may use the
+    /// `port` is the network port. Multiple listeners may use the
     /// same port, subject to the Listener compatibility rules.
     pub port: PortNumber,
-    /// Protocol specifies the network protocol this listener expects to receive.
+    /// `protocol` specifies the network protocol this listener expects to receive.
     pub protocol: ProtocolType,
-    /// TLS is the TLS configuration for the Listener. This field is required if
+    /// `tls` is the TLS configuration for the Listener. This field is required if
     /// the Protocol field is "HTTPS" or "TLS". It is invalid to set this field
     /// if the Protocol field is "HTTP", "TCP", or "UDP".
     ///
@@ -6317,7 +6317,7 @@ pub struct ListenerEntry {
     /// available certificates for any TLS handshake.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tls: Option<ListenerTlsConfig>,
-    /// AllowedRoutes defines the types of routes that MAY be attached to a
+    /// `allowed_routes` defines the types of routes that MAY be attached to a
     /// Listener and the trusted namespaces where those Route resources MAY be
     /// present.
     ///
@@ -6359,7 +6359,7 @@ impl ListenerEntry {
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct ListenerSetStatus {
-    /// Conditions describe the current conditions of the ListenerSet.
+    /// `conditions` describe the current conditions of the ListenerSet.
     ///
     /// Implementations MUST express ListenerSet conditions using the
     /// `ListenerSetConditionType` and `ListenerSetConditionReason`
@@ -6374,16 +6374,16 @@ pub struct ListenerSetStatus {
     /// Default: `{{type: "Accepted", status: "Unknown", reason:"Pending", message:"Waiting for controller", lastTransitionTime: "1970-01-01T00:00:00Z"},{type: "Programmed", status: "Unknown", reason:"Pending", message:"Waiting for controller", lastTransitionTime: "1970-01-01T00:00:00Z"}}`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conditions: Option<Vec<Condition>>,
-    /// Listeners provide status for each unique listener port defined in the Spec.
+    /// `listeners` provide status for each unique listener port defined in the Spec.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub listeners: Option<Vec<ListenerEntryStatus>>,
 }
 /// ListenerStatus is the status associated with a Listener.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ListenerEntryStatus {
-    /// Name is the name of the Listener that this status corresponds to.
+    /// `name` is the name of the Listener that this status corresponds to.
     pub name: SectionName,
-    /// SupportedKinds is the list indicating the Kinds supported by this
+    /// `supported_kinds` is the list indicating the Kinds supported by this
     /// listener. This MUST represent the kinds supported by an implementation for
     /// that Listener configuration.
     ///
@@ -6394,7 +6394,7 @@ pub struct ListenerEntryStatus {
     /// reference the valid Route kinds that have been specified.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "supportedKinds")]
     pub supported_kinds: Option<Vec<RouteGroupKind>>,
-    /// AttachedRoutes represents the total number of Routes that have been
+    /// `attached_routes` represents the total number of Routes that have been
     /// successfully attached to this Listener.
     ///
     /// Successful attachment of a Route to a Listener is based solely on the
@@ -6416,7 +6416,7 @@ pub struct ListenerEntryStatus {
     /// measuring blast radius/impact of changes to a Listener.
     #[serde(rename = "attachedRoutes")]
     pub attached_routes: i32,
-    /// Conditions describe the current condition of this listener.
+    /// `conditions` describe the current condition of this listener.
     pub conditions: Vec<Condition>,
 }
 impl ListenerEntryStatus {
@@ -6434,7 +6434,7 @@ impl ListenerEntryStatus {
         }
     }
 }
-/// ListenerSetConditionType is a type of condition associated with a
+/// [`ListenerSetConditionType`] is a type of condition associated with a
 /// ListenerSet. This type should be used with the ListenerSetStatus.Conditions
 /// field.
 #[derive(Clone, Debug)]
@@ -6583,7 +6583,7 @@ impl schemars::JsonSchema for ListenerSetConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// ListenerSetConditionReason defines the set of reasons that explain why a
+/// [`ListenerSetConditionReason`] defines the set of reasons that explain why a
 /// particular ListenerSet condition type has been raised.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -6715,7 +6715,7 @@ impl schemars::JsonSchema for ListenerSetConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// ListenerEntryConditionType is a type of condition associated with the
+/// [`ListenerEntryConditionType`] is a type of condition associated with the
 /// listener. This type should be used with the ListenerEntryStatus.Conditions
 /// field.
 #[derive(Clone, Debug)]
@@ -6921,7 +6921,7 @@ impl schemars::JsonSchema for ListenerEntryConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// ListenerEntryConditionReason defines the set of reasons that explain
+/// [`ListenerEntryConditionReason`] defines the set of reasons that explain
 /// why a particular ListenerEntry condition type has been raised.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -7122,7 +7122,7 @@ impl schemars::JsonSchema for ListenerEntryConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// LocalObjectReference identifies an API object within the namespace of the
+/// [`LocalObjectReference`] identifies an API object within the namespace of the
 /// referrer.
 /// The API object must be valid in the cluster; the Group and Kind must
 /// be registered in the cluster for this reference to be valid.
@@ -7132,12 +7132,12 @@ impl schemars::JsonSchema for ListenerEntryConditionReason {
 /// on the containing object.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct LocalObjectReference {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     pub group: Group,
-    /// Kind is kind of the referent. For example "HTTPRoute" or "Service".
+    /// `kind` is kind of the referent. For example "HTTPRoute" or "Service".
     pub kind: Kind,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
 }
 impl LocalObjectReference {
@@ -7150,7 +7150,7 @@ impl LocalObjectReference {
         }
     }
 }
-/// SecretObjectReference identifies an API object including its namespace,
+/// [`SecretObjectReference`] identifies an API object including its namespace,
 /// defaulting to Secret.
 ///
 /// The API object must be valid in the cluster; the Group and Kind must
@@ -7161,20 +7161,20 @@ impl LocalObjectReference {
 /// on the containing object.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct SecretObjectReference {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     ///
     /// Default: `""`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is kind of the referent. For example "Secret".
+    /// `kind` is kind of the referent. For example "Secret".
     ///
     /// Default: `Secret`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the referenced object. When unspecified, the local
+    /// `namespace` is the namespace of the referenced object. When unspecified, the local
     /// namespace is inferred.
     ///
     /// Note that when a namespace different than the local namespace is specified,
@@ -7197,7 +7197,7 @@ impl SecretObjectReference {
         }
     }
 }
-/// BackendObjectReference defines how an ObjectReference that is
+/// [`BackendObjectReference`] defines how an ObjectReference that is
 /// specific to BackendRef. It includes a few additional fields and features
 /// than a regular ObjectReference.
 ///
@@ -7214,13 +7214,13 @@ impl SecretObjectReference {
 /// on the containing object.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct BackendObjectReference {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     ///
     /// Default: `""`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is the Kubernetes resource kind of the referent. For example
+    /// `kind` is the Kubernetes resource kind of the referent. For example
     /// "Service".
     ///
     /// Defaults to "Service" when not specified.
@@ -7238,9 +7238,9 @@ pub struct BackendObjectReference {
     /// Default: `Service`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the backend. When unspecified, the local
+    /// `namespace` is the namespace of the backend. When unspecified, the local
     /// namespace is inferred.
     ///
     /// Note that when a namespace different than the local namespace is specified,
@@ -7251,7 +7251,7 @@ pub struct BackendObjectReference {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<Namespace>,
-    /// Port specifies the destination port number to use for this resource.
+    /// `port` specifies the destination port number to use for this resource.
     /// Port is required when the referent is a Kubernetes Service. In this
     /// case, the port number is the service port number, not the target port.
     /// For other resources, destination port might be derived from the referent
@@ -7271,7 +7271,7 @@ impl BackendObjectReference {
         }
     }
 }
-/// ObjectReference identifies an API object including its namespace.
+/// [`ObjectReference`] identifies an API object including its namespace.
 ///
 /// The API object must be valid in the cluster; the Group and Kind must
 /// be registered in the cluster for this reference to be valid.
@@ -7281,14 +7281,14 @@ impl BackendObjectReference {
 /// on the containing object.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ObjectReference {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When set to the empty string, core API group is inferred.
     pub group: Group,
-    /// Kind is kind of the referent. For example "ConfigMap" or "Service".
+    /// `kind` is kind of the referent. For example "ConfigMap" or "Service".
     pub kind: Kind,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the referenced object. When unspecified, the local
+    /// `namespace` is the namespace of the referenced object. When unspecified, the local
     /// namespace is inferred.
     ///
     /// Note that when a namespace different than the local namespace is specified,
@@ -7311,18 +7311,18 @@ impl ObjectReference {
         }
     }
 }
-/// LocalPolicyTargetReference identifies an API object to apply a direct or
+/// [`LocalPolicyTargetReference`] identifies an API object to apply a direct or
 /// inherited policy to. This should be used as part of Policy resources
 /// that can target Gateway API resources. For more information on how this
 /// policy attachment model works, and a sample Policy resource, refer to
 /// the policy attachment documentation for Gateway API.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct LocalPolicyTargetReference {
-    /// Group is the group of the target resource.
+    /// `group` is the group of the target resource.
     pub group: Group,
-    /// Kind is kind of the target resource.
+    /// `kind` is kind of the target resource.
     pub kind: Kind,
-    /// Name is the name of the target resource.
+    /// `name` is the name of the target resource.
     pub name: ObjectName,
 }
 impl LocalPolicyTargetReference {
@@ -7335,7 +7335,7 @@ impl LocalPolicyTargetReference {
         }
     }
 }
-/// NamespacedPolicyTargetReference identifies an API object to apply a direct or
+/// [`NamespacedPolicyTargetReference`] identifies an API object to apply a direct or
 /// inherited policy to, potentially in a different namespace. This should only
 /// be used as part of Policy resources that need to be able to target resources
 /// in different namespaces. For more information on how this policy attachment
@@ -7343,13 +7343,13 @@ impl LocalPolicyTargetReference {
 /// documentation for Gateway API.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct NamespacedPolicyTargetReference {
-    /// Group is the group of the target resource.
+    /// `group` is the group of the target resource.
     pub group: Group,
-    /// Kind is kind of the target resource.
+    /// `kind` is kind of the target resource.
     pub kind: Kind,
-    /// Name is the name of the target resource.
+    /// `name` is the name of the target resource.
     pub name: ObjectName,
-    /// Namespace is the namespace of the referent. When unspecified, the local
+    /// `namespace` is the namespace of the referent. When unspecified, the local
     /// namespace is inferred. Even when policy targets a resource in a different
     /// namespace, it MUST only apply to traffic originating from the same
     /// namespace as the policy.
@@ -7367,7 +7367,7 @@ impl NamespacedPolicyTargetReference {
         }
     }
 }
-/// LocalPolicyTargetReferenceWithSectionName identifies an API object to apply a
+/// [`LocalPolicyTargetReferenceWithSectionName`] identifies an API object to apply a
 /// direct policy to. This should be used as part of Policy resources that can
 /// target single resources. For more information on how this policy attachment
 /// mode works, and a sample Policy resource, refer to the policy attachment
@@ -7378,13 +7378,13 @@ impl NamespacedPolicyTargetReference {
 /// LocalPolicyTargetReference should be used.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct LocalPolicyTargetReferenceWithSectionName {
-    /// Group is the group of the target resource.
+    /// `group` is the group of the target resource.
     pub group: Group,
-    /// Kind is kind of the target resource.
+    /// `kind` is kind of the target resource.
     pub kind: Kind,
-    /// Name is the name of the target resource.
+    /// `name` is the name of the target resource.
     pub name: ObjectName,
-    /// SectionName is the name of a section within the target resource. When
+    /// `section_name` is the name of a section within the target resource. When
     /// unspecified, this targetRef targets the entire resource. In the following
     /// resources, SectionName is interpreted as the following:
     ///
@@ -7409,7 +7409,7 @@ impl LocalPolicyTargetReferenceWithSectionName {
         }
     }
 }
-/// PolicyConditionType is a type of condition for a policy. This type should be
+/// [`PolicyConditionType`] is a type of condition for a policy. This type should be
 /// used with a Policy resource Status.Conditions field.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -7429,7 +7429,7 @@ pub enum PolicyConditionType {
     /// Controllers may raise this condition with other reasons, but should
     /// prefer to use the reasons listed above to improve interoperability.
     ResolvedRefs,
-    /// PolicyConditionAccepted indicates whether the policy has been accepted or
+    /// [`PolicyConditionType::Accepted`] indicates whether the policy has been accepted or
     /// rejected by a targeted resource, and why.
     ///
     /// Possible reasons for this condition to be True are:
@@ -7527,7 +7527,7 @@ impl schemars::JsonSchema for PolicyConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// PolicyConditionReason is a reason for a policy condition.
+/// [`PolicyConditionReason`] is a reason for a policy condition.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum PolicyConditionReason {
@@ -7547,17 +7547,17 @@ pub enum PolicyConditionReason {
     /// BackendTLSPolicy's CACertificateRefs references an unknown or unsupported
     /// Group and/or Kind.
     InvalidKind,
-    /// PolicyReasonAccepted is used with the "Accepted" condition when the policy
+    /// [`PolicyConditionReason::Accepted`] is used with the "Accepted" condition when the policy
     /// has been accepted by the targeted resource.
     Accepted,
-    /// PolicyReasonConflicted is used with the "Accepted" condition when the
+    /// [`PolicyConditionReason::Conflicted`] is used with the "Accepted" condition when the
     /// policy has not been accepted by a targeted resource because there is
     /// another policy that targets the same resource and a merge is not possible.
     Conflicted,
-    /// PolicyReasonInvalid is used with the "Accepted" condition when the policy
+    /// [`PolicyConditionReason::Invalid`] is used with the "Accepted" condition when the policy
     /// is syntactically or semantically invalid.
     Invalid,
-    /// PolicyReasonTargetNotFound is used with the "Accepted" condition when the
+    /// [`PolicyConditionReason::TargetNotFound`] is used with the "Accepted" condition when the
     /// policy is attached to an invalid target resource.
     TargetNotFound,
     /// A value without a variant: one this version of the crate
@@ -7663,7 +7663,7 @@ impl schemars::JsonSchema for PolicyConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// PolicyAncestorStatus describes the status of a route with respect to an
+/// [`PolicyAncestorStatus`] describes the status of a route with respect to an
 /// associated Ancestor.
 ///
 /// Ancestors refer to objects that are either the Target of a policy or above it
@@ -7695,11 +7695,11 @@ impl schemars::JsonSchema for PolicyConditionReason {
 /// with a composite key made up of the AncestorRef and the ControllerName.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct PolicyAncestorStatus {
-    /// AncestorRef corresponds with a ParentRef in the spec that this
+    /// `ancestor_ref` corresponds with a ParentRef in the spec that this
     /// PolicyAncestorStatus struct describes the status of.
     #[serde(rename = "ancestorRef")]
     pub ancestor_ref: ParentReference,
-    /// ControllerName is a domain/path string that indicates the name of the
+    /// `controller_name` is a domain/path string that indicates the name of the
     /// controller that wrote this status. This corresponds with the
     /// controllerName field on GatewayClass.
     ///
@@ -7714,7 +7714,7 @@ pub struct PolicyAncestorStatus {
     /// longer necessary.
     #[serde(rename = "controllerName")]
     pub controller_name: GatewayController,
-    /// Conditions describes the status of the Policy with respect to the given Ancestor.
+    /// `conditions` describes the status of the Policy with respect to the given Ancestor.
     pub conditions: Vec<Condition>,
 }
 impl PolicyAncestorStatus {
@@ -7731,11 +7731,11 @@ impl PolicyAncestorStatus {
         }
     }
 }
-/// PolicyStatus defines the common attributes that all Policies should include within
+/// [`PolicyStatus`] defines the common attributes that all Policies should include within
 /// their status.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct PolicyStatus {
-    /// Ancestors is a list of ancestor resources (usually Gateways) that are
+    /// `ancestors` is a list of ancestor resources (usually Gateways) that are
     /// associated with the policy, and the status of the policy with respect to
     /// each ancestor. When this policy attaches to a parent, the controller that
     /// manages the parent and the ancestors MUST add an entry to this list when
@@ -7774,7 +7774,7 @@ impl PolicyStatus {
         }
     }
 }
-/// ReferenceGrantSpec identifies a cross namespace relationship that is trusted
+/// [`ReferenceGrantSpec`] identifies a cross namespace relationship that is trusted
 /// for Gateway API.
 #[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 #[kube(
@@ -7793,14 +7793,14 @@ impl PolicyStatus {
     doc = "ReferenceGrant identifies kinds of resources in other namespaces that are\ntrusted to reference the specified kinds of resources in the same namespace\nas the policy.\n\nEach ReferenceGrant can be used to represent a unique trust relationship.\nAdditional Reference Grants can be used to add to the set of trusted\nsources of inbound references for the namespace they are defined within.\n\nAll cross-namespace references in Gateway API (with the exception of cross-namespace\nGateway-route attachment) require a ReferenceGrant.\n\nReferenceGrant is a form of runtime verification allowing users to assert\nwhich cross-namespace object references are permitted. Implementations that\nsupport ReferenceGrant MUST NOT permit cross-namespace references which have\nno grant, and MUST respond to the removal of a grant by revoking the access\nthat the grant allowed."
 )]
 pub struct ReferenceGrantSpec {
-    /// From describes the trusted namespaces and kinds that can reference the
+    /// `from` describes the trusted namespaces and kinds that can reference the
     /// resources described in "To". Each entry in this list MUST be considered
     /// to be an additional place that references can be valid from, or to put
     /// this another way, entries MUST be combined using OR.
     ///
     /// Support: Core
     pub from: Vec<ReferenceGrantFrom>,
-    /// To describes the resources that may be referenced by the resources
+    /// `to` describes the resources that may be referenced by the resources
     /// described in "From". Each entry in this list MUST be considered to be an
     /// additional place that references can be valid to, or to put this another
     /// way, entries MUST be combined using OR.
@@ -7817,15 +7817,15 @@ impl ReferenceGrantSpec {
         }
     }
 }
-/// ReferenceGrantFrom describes trusted namespaces and kinds.
+/// [`ReferenceGrantFrom`] describes trusted namespaces and kinds.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ReferenceGrantFrom {
-    /// Group is the group of the referent.
+    /// `group` is the group of the referent.
     /// When empty, the Kubernetes core API group is inferred.
     ///
     /// Support: Core
     pub group: Group,
-    /// Kind is the kind of the referent. Although implementations may support
+    /// `kind` is the kind of the referent. Although implementations may support
     /// additional resources, the following types are part of the "Core"
     /// support level for this field.
     ///
@@ -7841,7 +7841,7 @@ pub struct ReferenceGrantFrom {
     /// * TLSRoute
     /// * UDPRoute
     pub kind: Kind,
-    /// Namespace is the namespace of the referent.
+    /// `namespace` is the namespace of the referent.
     ///
     /// Support: Core
     pub namespace: Namespace,
@@ -7856,23 +7856,23 @@ impl ReferenceGrantFrom {
         }
     }
 }
-/// ReferenceGrantTo describes what Kinds are allowed as targets of the
+/// [`ReferenceGrantTo`] describes what Kinds are allowed as targets of the
 /// references.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ReferenceGrantTo {
-    /// Group is the group of the referent.
+    /// `group` is the group of the referent.
     /// When empty, the Kubernetes core API group is inferred.
     ///
     /// Support: Core
     pub group: Group,
-    /// Kind is the kind of the referent. Although implementations may support
+    /// `kind` is the kind of the referent. Although implementations may support
     /// additional resources, the following types are part of the "Core"
     /// support level for this field:
     ///
     /// * Secret when used to permit a SecretObjectReference
     /// * Service when used to permit a BackendObjectReference
     pub kind: Kind,
-    /// Name is the name of the referent. When unspecified, this policy
+    /// `name` is the name of the referent. When unspecified, this policy
     /// refers to all resources of the specified Group and Kind in the local
     /// namespace.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -7888,7 +7888,7 @@ impl ReferenceGrantTo {
         }
     }
 }
-/// ParentReference identifies an API object (usually a Gateway) that can be considered
+/// [`ParentReference`] identifies an API object (usually a Gateway) that can be considered
 /// a parent of this resource (usually a route). There are two kinds of parent resources
 /// with "Core" support:
 ///
@@ -7902,7 +7902,7 @@ impl ReferenceGrantTo {
 /// be registered in the cluster for this reference to be valid.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ParentReference {
-    /// Group is the group of the referent.
+    /// `group` is the group of the referent.
     /// When unspecified, "gateway.networking.k8s.io" is inferred.
     /// To set the core API group (such as for a "Service" kind referent),
     /// Group must be explicitly set to "" (empty string).
@@ -7912,7 +7912,7 @@ pub struct ParentReference {
     /// Default: `gateway.networking.k8s.io`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is kind of the referent.
+    /// `kind` is kind of the referent.
     ///
     /// There are two kinds of parent resources with "Core" support:
     ///
@@ -7924,7 +7924,7 @@ pub struct ParentReference {
     /// Default: `Gateway`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Namespace is the namespace of the referent. When unspecified, this refers
+    /// `namespace` is the namespace of the referent. When unspecified, this refers
     /// to the local namespace of the Route.
     ///
     /// Note that there are specific rules for ParentRefs which cross namespace
@@ -7936,11 +7936,11 @@ pub struct ParentReference {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<Namespace>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     ///
     /// Support: Core
     pub name: ObjectName,
-    /// SectionName is the name of a section within the target resource. In the
+    /// `section_name` is the name of a section within the target resource. In the
     /// following resources, SectionName is interpreted as the following:
     ///
     /// * Gateway: Listener name. When both Port (experimental) and SectionName
@@ -7966,7 +7966,7 @@ pub struct ParentReference {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "sectionName")]
     pub section_name: Option<SectionName>,
-    /// Port is the network port this Route targets. It can be interpreted
+    /// `port` is the network port this Route targets. It can be interpreted
     /// differently based on the type of parent resource.
     ///
     /// When the parent resource is a Gateway, this targets all listeners
@@ -8006,11 +8006,11 @@ impl ParentReference {
         }
     }
 }
-/// CommonRouteSpec defines the common attributes that all Routes MUST include
+/// [`CommonRouteSpec`] defines the common attributes that all Routes MUST include
 /// within their spec.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq, Default)]
 pub struct CommonRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -8063,9 +8063,9 @@ pub struct CommonRouteSpec {
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
 }
-/// PortNumber defines a network port.
+/// [`PortNumber`] defines a network port.
 pub type PortNumber = i32;
-/// BackendRef defines how a Route should forward a request to a Kubernetes
+/// [`BackendRef`] defines how a Route should forward a request to a Kubernetes
 /// resource.
 ///
 /// Note that when a namespace different than the local namespace is specified, a
@@ -8078,13 +8078,13 @@ pub type PortNumber = i32;
 /// where this struct is used for more information about the exact behavior.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct BackendRef {
-    /// Group is the group of the referent. For example, "gateway.networking.k8s.io".
+    /// `group` is the group of the referent. For example, "gateway.networking.k8s.io".
     /// When unspecified or empty string, core API group is inferred.
     ///
     /// Default: `""`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is the Kubernetes resource kind of the referent. For example
+    /// `kind` is the Kubernetes resource kind of the referent. For example
     /// "Service".
     ///
     /// Defaults to "Service" when not specified.
@@ -8102,9 +8102,9 @@ pub struct BackendRef {
     /// Default: `Service`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the backend. When unspecified, the local
+    /// `namespace` is the namespace of the backend. When unspecified, the local
     /// namespace is inferred.
     ///
     /// Note that when a namespace different than the local namespace is specified,
@@ -8115,14 +8115,14 @@ pub struct BackendRef {
     /// Support: Core
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub namespace: Option<Namespace>,
-    /// Port specifies the destination port number to use for this resource.
+    /// `port` specifies the destination port number to use for this resource.
     /// Port is required when the referent is a Kubernetes Service. In this
     /// case, the port number is the service port number, not the target port.
     /// For other resources, destination port might be derived from the referent
     /// resource or this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub port: Option<PortNumber>,
-    /// Weight specifies the proportion of requests forwarded to the referenced
+    /// `weight` specifies the proportion of requests forwarded to the referenced
     /// backend. This is computed as weight/(sum of all weights in this
     /// BackendRefs list). For non-zero values, there may be some epsilon from
     /// the exact proportion defined here depending on the precision an
@@ -8153,7 +8153,7 @@ impl BackendRef {
         }
     }
 }
-/// RouteConditionType is a type of condition for a route.
+/// [`RouteConditionType`] is a type of condition for a route.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum RouteConditionType {
@@ -8319,7 +8319,7 @@ impl schemars::JsonSchema for RouteConditionType {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// RouteConditionReason is a reason for a route condition.
+/// [`RouteConditionReason`] is a reason for a route condition.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub enum RouteConditionReason {
@@ -8482,15 +8482,15 @@ impl schemars::JsonSchema for RouteConditionReason {
         schemars::json_schema!({ "type" : "string" })
     }
 }
-/// RouteParentStatus describes the status of a route with respect to an
+/// [`RouteParentStatus`] describes the status of a route with respect to an
 /// associated Parent.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct RouteParentStatus {
-    /// ParentRef corresponds with a ParentRef in the spec that this
+    /// `parent_ref` corresponds with a ParentRef in the spec that this
     /// RouteParentStatus struct describes the status of.
     #[serde(rename = "parentRef")]
     pub parent_ref: ParentReference,
-    /// ControllerName is a domain/path string that indicates the name of the
+    /// `controller_name` is a domain/path string that indicates the name of the
     /// controller that wrote this status. This corresponds with the
     /// controllerName field on GatewayClass.
     ///
@@ -8505,7 +8505,7 @@ pub struct RouteParentStatus {
     /// longer necessary.
     #[serde(rename = "controllerName")]
     pub controller_name: GatewayController,
-    /// Conditions describes the status of the route with respect to the Gateway.
+    /// `conditions` describes the status of the route with respect to the Gateway.
     /// Note that the route's availability is also subject to the Gateway's own
     /// status conditions and listener status.
     ///
@@ -8540,11 +8540,11 @@ impl RouteParentStatus {
         }
     }
 }
-/// RouteStatus defines the common attributes that all Routes MUST include within
+/// [`RouteStatus`] defines the common attributes that all Routes MUST include within
 /// their status.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct RouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -8568,7 +8568,7 @@ impl RouteStatus {
         }
     }
 }
-/// Hostname is the fully qualified domain name of a network host. This matches
+/// [`Hostname`] is the fully qualified domain name of a network host. This matches
 /// the RFC 1123 definition of a hostname with 2 notable exceptions:
 ///
 ///  1. IPs are not allowed.
@@ -8583,7 +8583,7 @@ impl RouteStatus {
 /// alphanumeric characters or '-', and must start and end with an alphanumeric
 /// character. No other punctuation is allowed.
 pub type Hostname = String;
-/// PreciseHostname is the fully qualified domain name of a network host. This
+/// [`PreciseHostname`] is the fully qualified domain name of a network host. This
 /// matches the RFC 1123 definition of a hostname with 1 notable exception that
 /// numeric IP addresses are not allowed.
 ///
@@ -8603,7 +8603,7 @@ pub type AbsoluteUri = String;
 /// URIs that include an authority MUST include a fully qualified domain name or
 /// IP address as the host.
 pub type CorsOrigin = String;
-/// Group refers to a Kubernetes Group. It must either be an empty string or a
+/// [`Group`] refers to a Kubernetes Group. It must either be an empty string or a
 /// RFC 1123 subdomain.
 ///
 /// This validation is based off of the corresponding Kubernetes validation:
@@ -8619,7 +8619,7 @@ pub type CorsOrigin = String;
 ///
 /// * "example.com/bar" - "/" is an invalid character
 pub type Group = String;
-/// Kind refers to a Kubernetes Kind.
+/// [`Kind`] refers to a Kubernetes Kind.
 ///
 /// Valid values include:
 ///
@@ -8630,11 +8630,11 @@ pub type Group = String;
 ///
 /// * "invalid/kind" - "/" is an invalid character
 pub type Kind = String;
-/// ObjectName refers to the name of a Kubernetes object.
+/// [`ObjectName`] refers to the name of a Kubernetes object.
 /// Object names can have a variety of forms, including RFC 1123 subdomains,
 /// RFC 1123 labels, or RFC 1035 labels.
 pub type ObjectName = String;
-/// Namespace refers to a Kubernetes namespace. It must be a RFC 1123 label.
+/// [`Namespace`] refers to a Kubernetes namespace. It must be a RFC 1123 label.
 ///
 /// This validation is based off of the corresponding Kubernetes validation:
 /// https://github.com/kubernetes/apimachinery/blob/02cfb53916346d085a6c6c7c66f882e3c6b0eca6/pkg/util/validation/validation.go#L187
@@ -8650,7 +8650,7 @@ pub type ObjectName = String;
 ///
 /// * "example.com" - "." is an invalid character
 pub type Namespace = String;
-/// SectionName is the name of a section in a Kubernetes resource.
+/// [`SectionName`] is the name of a section in a Kubernetes resource.
 ///
 /// In the following resources, SectionName is interpreted as the following:
 ///
@@ -8675,7 +8675,7 @@ pub type Namespace = String;
 ///
 /// * "example.com/bar" - "/" is an invalid character
 pub type SectionName = String;
-/// GatewayController is the name of a Gateway API controller. It must be a
+/// [`GatewayController`] is the name of a Gateway API controller. It must be a
 /// domain prefixed path.
 ///
 /// Valid values include:
@@ -8687,7 +8687,7 @@ pub type SectionName = String;
 /// * "example.com" - must include path
 /// * "foo.example.com" - must include path
 pub type GatewayController = String;
-/// AnnotationKey is the key of an annotation in Gateway API. This is used for
+/// [`AnnotationKey`] is the key of an annotation in Gateway API. This is used for
 /// validation of maps such as TLS options. This matches the Kubernetes
 /// "qualified name" validation that is used for annotations and other common
 /// values.
@@ -8704,12 +8704,12 @@ pub type GatewayController = String;
 /// * example~ - "~" is an invalid character
 /// * example.com. - cannot start or end with "."
 pub type AnnotationKey = String;
-/// AnnotationValue is the value of an annotation in Gateway API. This is used
+/// [`AnnotationValue`] is the value of an annotation in Gateway API. This is used
 /// for validation of maps such as TLS options. This roughly matches Kubernetes
 /// annotation validation, although the length validation in that case is based
 /// on the entire size of the annotations struct.
 pub type AnnotationValue = String;
-/// LabelKey is the key of a label in the Gateway API. This is used for validation
+/// [`LabelKey`] is the key of a label in the Gateway API. This is used for validation
 /// of maps such as Gateway infrastructure labels. This matches the Kubernetes
 /// "qualified name" validation that is used for labels.
 ///
@@ -8725,7 +8725,7 @@ pub type AnnotationValue = String;
 /// * example~ - "~" is an invalid character
 /// * example.com. - cannot start or end with "."
 pub type LabelKey = String;
-/// LabelValue is the value of a label in the Gateway API. This is used for validation
+/// [`LabelValue`] is the value of a label in the Gateway API. This is used for validation
 /// of maps such as Gateway infrastructure labels. This matches the Kubernetes
 /// label validation rules:
 /// * must be 63 characters or less (can be empty),
@@ -8738,7 +8738,7 @@ pub type LabelKey = String;
 /// * my.name
 /// * 123-my-value
 pub type LabelValue = String;
-/// AddressType defines how a network address is represented as a text string.
+/// [`AddressType`] defines how a network address is represented as a text string.
 /// This may take two possible forms:
 ///
 /// * A predefined CamelCase string identifier (currently limited to `IPAddress` or `Hostname`)
@@ -8875,9 +8875,9 @@ impl Default for AddressType {
         Self::IpAddress
     }
 }
-/// HeaderName is the name of a header or query parameter.
+/// [`HeaderName`] is the name of a header or query parameter.
 pub type HeaderName = String;
-/// Duration is a string value representing a duration in time. The format is as specified
+/// [`Duration`] is a string value representing a duration in time. The format is as specified
 /// in GEP-2257, a strict subset of the syntax parsed by Golang time.ParseDuration.
 pub type Duration = String;
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
@@ -8896,23 +8896,23 @@ impl Fraction {
         }
     }
 }
-/// ParentGatewayReference identifies an API object including its namespace,
+/// [`ParentGatewayReference`] identifies an API object including its namespace,
 /// defaulting to Gateway.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct ParentGatewayReference {
-    /// Group is the group of the referent.
+    /// `group` is the group of the referent.
     ///
     /// Default: `"gateway.networking.k8s.io"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group: Option<Group>,
-    /// Kind is kind of the referent. For example "Gateway".
+    /// `kind` is kind of the referent. For example "Gateway".
     ///
     /// Default: `Gateway`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<Kind>,
-    /// Name is the name of the referent.
+    /// `name` is the name of the referent.
     pub name: ObjectName,
-    /// Namespace is the namespace of the referent.  If not present,
+    /// `namespace` is the namespace of the referent.  If not present,
     /// the namespace of the referent is assumed to be the same as
     /// the namespace of the referring object.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -8929,7 +8929,7 @@ impl ParentGatewayReference {
         }
     }
 }
-/// TLSRouteSpec defines the expected behavior of a TLSRoute.
+/// [`TlsRouteSpec`] defines the expected behavior of a TLSRoute.
 /// A TLSRoute MUST be attached to a Listener of protocol TLS.
 /// Core: The listener CAN be of type Passthrough
 /// Extended: The listener CAN be of type Terminate
@@ -8950,7 +8950,7 @@ impl ParentGatewayReference {
     doc = "The TLSRoute resource is similar to TCPRoute, but can be configured\nto match against TLS-specific metadata. This allows more flexibility\nin matching streams for a given TLS listener.\n\nIf you need to forward traffic to a single target for a TLS listener, you\ncould choose to use a TCPRoute with a TLS listener."
 )]
 pub struct TlsRouteSpec {
-    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// `parent_refs` references the resources (usually Gateways) that a Route wants
     /// to be attached to. Note that the referenced parent resource needs to
     /// allow this for the attachment to be complete. For Gateways, that means
     /// the Gateway needs to allow attachment from Routes of this kind and
@@ -9002,7 +9002,7 @@ pub struct TlsRouteSpec {
     /// generic way to enable other kinds of cross-namespace reference.
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
     pub parent_refs: Option<Vec<ParentReference>>,
-    /// Hostnames defines a set of SNI hostnames that should match against the
+    /// `hostnames` defines a set of SNI hostnames that should match against the
     /// SNI attribute of TLS ClientHello message in TLS handshake. This matches
     /// the RFC 1123 definition of a hostname with 2 notable exceptions:
     ///
@@ -9010,7 +9010,7 @@ pub struct TlsRouteSpec {
     /// 2. A hostname may be prefixed with a wildcard label (`*.`). The wildcard
     ///    label must appear by itself as the first label.
     pub hostnames: Vec<Hostname>,
-    /// Rules are a list of actions.
+    /// `rules` are a list of actions.
     pub rules: Vec<TlsRouteRule>,
 }
 impl TlsRouteSpec {
@@ -9023,10 +9023,10 @@ impl TlsRouteSpec {
         }
     }
 }
-/// TLSRouteStatus defines the observed state of TLSRoute
+/// [`TlsRouteStatus`] defines the observed state of TLSRoute
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct TlsRouteStatus {
-    /// Parents is a list of parent resources (usually Gateways) that are
+    /// `parents` is a list of parent resources (usually Gateways) that are
     /// associated with the route, and the status of the route with respect to
     /// each parent. When this route attaches to a parent, the controller that
     /// manages the parent must add an entry to this list when the controller
@@ -9050,13 +9050,13 @@ impl TlsRouteStatus {
         }
     }
 }
-/// TLSRouteRule is the configuration for a given rule.
+/// [`TlsRouteRule`] is the configuration for a given rule.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
 pub struct TlsRouteRule {
-    /// Name is the name of the route rule. This name MUST be unique within a Route if it is set.
+    /// `name` is the name of the route rule. This name MUST be unique within a Route if it is set.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<SectionName>,
-    /// BackendRefs defines the backend(s) where matching requests should be
+    /// `backend_refs` defines the backend(s) where matching requests should be
     /// sent. If unspecified or invalid (refers to a nonexistent resource or
     /// a Service with no endpoints), the rule performs no forwarding; if no
     /// filters are specified that would result in a response being sent, the

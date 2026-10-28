@@ -4,7 +4,10 @@ use anyhow::{Context, Result, bail};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use super::{ModuleEmitter, docs::doc_attrs};
+use super::{
+    ModuleEmitter,
+    docs::{doc_attrs, replace_lead},
+};
 use crate::{
     ir::{Field, PrinterColumn},
     model::KindVersion,
@@ -102,7 +105,7 @@ impl ModuleEmitter<'_, '_> {
         let ident = format_ident!("{name}");
         let ty = self.rust_type(&field.ty)?;
 
-        let mut doc = field.doc.clone();
+        let mut doc = replace_lead(&field.doc, &field.name, &format!("`{name}`"));
         let mut add_line = |line: String| {
             if !doc.is_empty() {
                 doc.push_str("\n\n");
