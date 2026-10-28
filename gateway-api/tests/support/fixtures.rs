@@ -5,8 +5,8 @@ use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomRe
 use super::Channel;
 
 /// The vendored upstream CRDs of `channel`, by resource (the CRD's plural
-/// name, e.g. `httproutes`): the same YAML the bindings are generated from
-/// (see `cargo xtask generate`).
+/// name, e.g. `httproutes`): the CRDs of the Go module the bindings are
+/// generated from, which `cargo xtask generate` copies.
 pub fn upstream_crds(channel: Channel) -> BTreeMap<String, CustomResourceDefinition> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/crds")

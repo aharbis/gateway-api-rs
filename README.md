@@ -19,7 +19,7 @@ Requires a [kube-rs] [Client] to perform create, read, update and delete (CRUD)
 operations on [Gateway API resources].
 
 ```rust
-use gateway_api::httproutes::HttpRoute;
+use gateway_api::v1::HttpRoute;
 use kube::{Api, Client, ResourceExt, api::ListParams};
 
 let client = Client::try_default().await?;
@@ -33,15 +33,61 @@ for route in routes.list(&ListParams::default()).await? {
 [Client]:https://docs.rs/kube/latest/kube/struct.Client.html
 [Gateway API resources]:https://gateway-api.sigs.k8s.io/api-types/gateway/
 
-### API versions
+### Modules and types
 
-Every API version a CRD defines is available as a submodule of the resource
-module. The module root re-exports the primary version (usually `v1`):
+The crate is generated from upstream's Go packages, the same source as
+upstream's Go SDK. Each Go package is a module (`gateway_api::v1`,
+`gateway_api::v1beta1`, ...), and each Go type is a Rust type under its Go name
+in Rust casing: `HTTPRouteRule` is `HttpRouteRule`. A Go alias of another
+package's type is a re-export, so `v1beta1::ParentReference` is
+`v1::ParentReference`.
+
+Each API version a CRD defines has its root type in that version's module:
 
 ```rust
-use gateway_api::referencegrants::ReferenceGrant; // re-export of v1
-use gateway_api::referencegrants::v1::ReferenceGrant as ReferenceGrantV1;
-use gateway_api::referencegrants::v1beta1::ReferenceGrant as ReferenceGrantV1beta1;
+use gateway_api::v1::ReferenceGrant;
+use gateway_api::v1beta1::ReferenceGrant as ReferenceGrantV1beta1;
+```
+
+### Building objects
+
+Required fields have no default. A struct with required fields has a `new()`
+that takes them, and struct update syntax fills in the rest:
+
+```rust
+use gateway_api::v1::{
+    Gateway, GatewaySpec, HttpHeader, HttpHeaderFilter, HttpRouteFilter, HttpRouteFilterType, Listener,
+};
+
+let gateway = Gateway::new(
+    "example",
+    GatewaySpec::new("example-class", vec![Listener::new("http", 80, "HTTP")]),
+);
+
+let filter = HttpRouteFilter {
+    request_header_modifier: Some(HttpHeaderFilter {
+        set: Some(vec![HttpHeader::new("x-env", "prod")]),
+        ..Default::default()
+    }),
+    ..HttpRouteFilter::new(HttpRouteFilterType::RequestHeaderModifier)
+};
+```
+
+### Enums
+
+Go string types with known values are enums, including the condition types and
+reasons. Each has an `Other(String)` variant for values it doesn't know, and
+converts from and to strings:
+
+```rust
+use gateway_api::v1::{GatewayConditionType, ProtocolType};
+
+assert_eq!(GatewayConditionType::Programmed, "Programmed");
+assert_eq!(ProtocolType::from("HTTPS"), ProtocolType::Https);
+assert_eq!(
+    ProtocolType::from("example.com/custom"),
+    ProtocolType::Other("example.com/custom".into())
+);
 ```
 
 ### Experimental APIs
@@ -55,8 +101,8 @@ gateway-api = { version = "*", features = ["experimental"] }
 ```
 
 ```rust
-use gateway_api::experimental::tcproutes::TcpRoute;
-use gateway_api::experimental::httproutes::HttpRoute;
+use gateway_api::experimental::v1alpha2::TcpRoute;
+use gateway_api::experimental::apisx::v1alpha1::XBackendTrafficPolicy;
 ```
 
 > **Warning**: Experimental APIs may change or be removed without notice.

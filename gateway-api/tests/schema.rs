@@ -438,7 +438,7 @@ struct Schema {
 impl From<&JSONSchemaProps> for Schema {
     fn from(schema: &JSONSchemaProps) -> Self {
         // The API server reads an integer without a format as an `int64`,
-        // which is also what kopium generates for one.
+        // which is also what Go's `int` generates.
         let format = match (schema.type_.as_deref(), &schema.format) {
             (Some("integer"), None) => Some("int64".into()),
             (_, format) => format.clone(),
