@@ -72,12 +72,16 @@ jobs:
           key: ${{ runner.os }}-cargo-generate-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-generate-
 
-      - name: install kopium
-        env:
-          KOPIUM_VERSION: 0.24.1
-        run: |
-          kopium --version 2>/dev/null | grep -qx "kopium ${KOPIUM_VERSION}" || \
-            cargo install --locked --force kopium --version "${KOPIUM_VERSION}"
+      - name: install go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: gateway-api/codegen/go.mod
+          cache-dependency-path: |
+            codegen/gofacts/go.sum
+            gateway-api/codegen/go.sum
+
+      - name: vet and test go modules
+        run: make go.check
 
       - name: run generate
         run: make generate

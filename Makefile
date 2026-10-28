@@ -34,6 +34,16 @@ lint: fmt.check
 	cargo clippy --all-targets -- -D warnings $(CLIPPY_ALLOWS)
 	cargo clippy --all-targets --all-features -- -D warnings $(CLIPPY_ALLOWS)
 
+# The Go modules: gofacts, and each generated crate's codegen module.
+GO_MODULES = codegen/gofacts gateway-api/codegen
+
+.PHONY: go.check
+go.check:
+	@for dir in $(GO_MODULES); do \
+		echo "go vet and test in $$dir"; \
+		(cd $$dir && test -z "$$(gofmt -l .)" && go vet ./... && go test ./...) || exit 1; \
+	done
+
 .PHONY: package
 package:
 	cargo package -p gateway-api --features k8s-openapi/earliest
