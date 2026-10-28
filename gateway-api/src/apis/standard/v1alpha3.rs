@@ -1,0 +1,217 @@
+// WARNING: generated file — do not edit
+//! Go package `sigs.k8s.io/gateway-api/apis/v1alpha3` at v1.5.1.
+//!
+//! Its kinds, as the CRDs in `config/crd/standard` define them:
+//!
+//! - [`BackendTlsPolicy`]: `gateway.networking.k8s.io/v1alpha3`
+//!   - served: no
+//!   - storage: no
+//!   - deprecated: yes (The v1alpha3 version of BackendTLSPolicy has been deprecated and will be removed in a future release of the API. Please upgrade to v1.)
+//!
+//! - [`TlsRoute`]: `gateway.networking.k8s.io/v1alpha3`
+//!   - served: no
+//!   - storage: no
+//!   - deprecated: yes (The v1alpha3 version of TLSRoute has been deprecated and will be removed in a future release of the API. Please upgrade to v1.)
+use crate::apis::standard::v1::{
+    AnnotationKey, AnnotationValue, BackendTlsPolicyValidation, LocalPolicyTargetReferenceWithSectionName,
+    ParentReference, PolicyStatus, TlsRouteRule, TlsRouteStatus,
+};
+pub use crate::apis::standard::v1::{BackendRef, CommonRouteSpec, Hostname, RouteStatus, SectionName};
+/// BackendTLSPolicySpec defines the desired state of BackendTLSPolicy.
+///
+/// Support: Extended
+#[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
+#[kube(
+    group = "gateway.networking.k8s.io",
+    version = "v1alpha3",
+    kind = "BackendTLSPolicy",
+    root = "BackendTlsPolicy",
+    plural = "backendtlspolicies"
+)]
+#[kube(namespaced)]
+#[kube(status = "PolicyStatus")]
+#[kube(shortname = "btlspolicy")]
+#[kube(category = "gateway-api")]
+#[kube(derive = "PartialEq")]
+pub struct BackendTlsPolicySpec {
+    /// TargetRefs identifies an API object to apply the policy to.
+    /// Note that this config applies to the entire referenced resource
+    /// by default, but this default may change in the future to provide
+    /// a more granular application of the policy.
+    ///
+    /// TargetRefs must be _distinct_. This means either that:
+    ///
+    /// * They select different targets. If this is the case, then targetRef
+    ///   entries are distinct. In terms of fields, this means that the
+    ///   multi-part key defined by `group`, `kind`, and `name` must
+    ///   be unique across all targetRef entries in the BackendTLSPolicy.
+    /// * They select different sectionNames in the same target.
+    ///
+    /// When more than one BackendTLSPolicy selects the same target and
+    /// sectionName, implementations MUST determine precedence using the
+    /// following criteria, continuing on ties:
+    ///
+    /// * The older policy by creation timestamp takes precedence. For
+    ///   example, a policy with a creation timestamp of "2021-07-15
+    ///   01:02:03" MUST be given precedence over a policy with a
+    ///   creation timestamp of "2021-07-15 01:02:04".
+    /// * The policy appearing first in alphabetical order by {namespace}/{name}.
+    ///   For example, a policy named `foo/bar` is given precedence over a
+    ///   policy named `foo/baz`.
+    ///
+    /// For any BackendTLSPolicy that does not take precedence, the
+    /// implementation MUST ensure the `Accepted` Condition is set to
+    /// `status: False`, with Reason `Conflicted`.
+    ///
+    /// Implementations SHOULD NOT support more than one targetRef at this
+    /// time. Although the API technically allows for this, the current guidance
+    /// for conflict resolution and status handling is lacking. Until that can be
+    /// clarified in a future release, the safest approach is to support a single
+    /// targetRef.
+    ///
+    /// Support Levels:
+    ///
+    /// * Extended: Kubernetes Service referenced by HTTPRoute backendRefs.
+    ///
+    /// * Implementation-Specific: Services not connected via HTTPRoute, and any
+    ///   other kind of backend. Implementations MAY use BackendTLSPolicy for:
+    ///   - Services not referenced by any Route (e.g., infrastructure services)
+    ///   - Gateway feature backends (e.g., ExternalAuth, rate-limiting services)
+    ///   - Service mesh workload-to-service communication
+    ///   - Other resource types beyond Service
+    ///
+    /// Implementations SHOULD aim to ensure that BackendTLSPolicy behavior is consistent,
+    /// even outside of the extended HTTPRoute -(backendRef) -> Service path.
+    /// They SHOULD clearly document how BackendTLSPolicy is interpreted in these
+    /// scenarios, including:
+    ///   - Which resources beyond Service are supported
+    ///   - How the policy is discovered and applied
+    ///   - Any implementation-specific semantics or restrictions
+    ///
+    /// Note that this config applies to the entire referenced resource
+    /// by default, but this default may change in the future to provide
+    /// a more granular application of the policy.
+    #[serde(rename = "targetRefs")]
+    pub target_refs: Vec<LocalPolicyTargetReferenceWithSectionName>,
+    /// Validation contains backend TLS validation configuration.
+    pub validation: BackendTlsPolicyValidation,
+    /// Options are a list of key/value pairs to enable extended TLS
+    /// configuration for each implementation. For example, configuring the
+    /// minimum TLS version or supported cipher suites.
+    ///
+    /// A set of common keys MAY be defined by the API in the future. To avoid
+    /// any ambiguity, implementation-specific definitions MUST use
+    /// domain-prefixed names, such as `example.com/my-custom-option`.
+    /// Un-prefixed names are reserved for key names defined by Gateway API.
+    ///
+    /// Support: Implementation-specific
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<std::collections::BTreeMap<AnnotationKey, AnnotationValue>>,
+}
+impl BackendTlsPolicySpec {
+    /// Creates a `BackendTlsPolicySpec` from its required fields, with the optional fields `None`.
+    pub fn new(
+        target_refs: impl Into<Vec<LocalPolicyTargetReferenceWithSectionName>>,
+        validation: impl Into<BackendTlsPolicyValidation>,
+    ) -> Self {
+        Self {
+            target_refs: target_refs.into(),
+            validation: validation.into(),
+            options: None,
+        }
+    }
+}
+/// TLSRouteSpec defines the expected behavior of a TLSRoute.
+/// A TLSRoute MUST be attached to a Listener of protocol TLS.
+/// Core: The listener CAN be of type Passthrough
+/// Extended: The listener CAN be of type Terminate
+#[derive(kube::CustomResource, serde::Serialize, serde::Deserialize, Clone, Debug, schemars::JsonSchema, PartialEq)]
+#[kube(
+    group = "gateway.networking.k8s.io",
+    version = "v1alpha3",
+    kind = "TLSRoute",
+    root = "TlsRoute",
+    plural = "tlsroutes"
+)]
+#[kube(namespaced)]
+#[kube(status = "TlsRouteStatus")]
+#[kube(category = "gateway-api")]
+#[kube(printcolumn(name = "Age", type_ = "date", json_path = ".metadata.creationTimestamp"))]
+#[kube(derive = "PartialEq")]
+#[kube(
+    doc = "The TLSRoute resource is similar to TCPRoute, but can be configured\nto match against TLS-specific metadata. This allows more flexibility\nin matching streams for a given TLS listener.\n\nIf you need to forward traffic to a single target for a TLS listener, you\ncould choose to use a TCPRoute with a TLS listener."
+)]
+pub struct TlsRouteSpec {
+    /// ParentRefs references the resources (usually Gateways) that a Route wants
+    /// to be attached to. Note that the referenced parent resource needs to
+    /// allow this for the attachment to be complete. For Gateways, that means
+    /// the Gateway needs to allow attachment from Routes of this kind and
+    /// namespace. For Services, that means the Service must either be in the same
+    /// namespace for a "producer" route, or the mesh implementation must support
+    /// and allow "consumer" routes for the referenced Service. ReferenceGrant is
+    /// not applicable for governing ParentRefs to Services - it is not possible to
+    /// create a "producer" route for a Service in a different namespace from the
+    /// Route.
+    ///
+    /// There are two kinds of parent resources with "Core" support:
+    ///
+    /// * Gateway (Gateway conformance profile)
+    /// * Service (Mesh conformance profile, ClusterIP Services only)
+    ///
+    /// This API may be extended in the future to support additional kinds of parent
+    /// resources.
+    ///
+    /// ParentRefs must be _distinct_. This means either that:
+    ///
+    /// * They select different objects.  If this is the case, then parentRef
+    ///   entries are distinct. In terms of fields, this means that the
+    ///   multi-part key defined by `group`, `kind`, `namespace`, and `name` must
+    ///   be unique across all parentRef entries in the Route.
+    /// * They do not select different objects, but for each optional field used,
+    ///   each ParentRef that selects the same object must set the same set of
+    ///   optional fields to different values. If one ParentRef sets a
+    ///   combination of optional fields, all must set the same combination.
+    ///
+    /// Some examples:
+    ///
+    /// * If one ParentRef sets `sectionName`, all ParentRefs referencing the
+    ///   same object must also set `sectionName`.
+    /// * If one ParentRef sets `port`, all ParentRefs referencing the same
+    ///   object must also set `port`.
+    /// * If one ParentRef sets `sectionName` and `port`, all ParentRefs
+    ///   referencing the same object must also set `sectionName` and `port`.
+    ///
+    /// It is possible to separately reference multiple distinct objects that may
+    /// be collapsed by an implementation. For example, some implementations may
+    /// choose to merge compatible Gateway Listeners together. If that is the
+    /// case, the list of routes attached to those resources should also be
+    /// merged.
+    ///
+    /// Note that for ParentRefs that cross namespace boundaries, there are specific
+    /// rules. Cross-namespace references are only valid if they are explicitly
+    /// allowed by something in the namespace they are referring to. For example,
+    /// Gateway has the AllowedRoutes field, and ReferenceGrant provides a
+    /// generic way to enable other kinds of cross-namespace reference.
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentRefs")]
+    pub parent_refs: Option<Vec<ParentReference>>,
+    /// Hostnames defines a set of SNI hostnames that should match against the
+    /// SNI attribute of TLS ClientHello message in TLS handshake. This matches
+    /// the RFC 1123 definition of a hostname with 2 notable exceptions:
+    ///
+    /// 1. IPs are not allowed in SNI hostnames per RFC 6066.
+    /// 2. A hostname may be prefixed with a wildcard label (`*.`). The wildcard
+    ///    label must appear by itself as the first label.
+    pub hostnames: Vec<Hostname>,
+    /// Rules are a list of actions.
+    pub rules: Vec<TlsRouteRule>,
+}
+impl TlsRouteSpec {
+    /// Creates a `TlsRouteSpec` from its required fields, with the optional fields `None`.
+    pub fn new(hostnames: impl Into<Vec<Hostname>>, rules: impl Into<Vec<TlsRouteRule>>) -> Self {
+        Self {
+            parent_refs: None,
+            hostnames: hostnames.into(),
+            rules: rules.into(),
+        }
+    }
+}

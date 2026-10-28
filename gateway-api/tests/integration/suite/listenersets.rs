@@ -1,28 +1,22 @@
 use kube::Api;
 
-use self::api::{ListenerSet, ListenerSetListeners, ListenerSetParentRef, ListenerSetSpec};
+use self::api::{ListenerEntry, ListenerSet, ListenerSetSpec, ParentGatewayReference};
 use crate::common;
 
 #[ignore]
 #[tokio::test]
 async fn crud() {
-    let set = ListenerSet {
-        spec: ListenerSetSpec {
-            parent_ref: ListenerSetParentRef {
+    let set = ListenerSet::new(
+        "test",
+        ListenerSetSpec::new(
+            ParentGatewayReference {
                 group: Some("gateway.networking.k8s.io".into()),
                 kind: Some("Gateway".into()),
-                name: "test-gateway".into(),
-                namespace: None,
+                ..ParentGatewayReference::new("test-gateway")
             },
-            listeners: vec![ListenerSetListeners {
-                name: "http".into(),
-                port: 8080,
-                protocol: "HTTP".into(),
-                ..Default::default()
-            }],
-        },
-        ..Default::default()
-    };
+            vec![ListenerEntry::new("http", 8080, "HTTP")],
+        ),
+    );
 
     common::crud(Api::default_namespaced(common::client().await), set).await;
 }

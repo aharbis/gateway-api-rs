@@ -166,3 +166,42 @@ It holds nothing specific to one API group: raw tags never reach it.
   order, each with `name`, `package` (the Go package of its kind), `served`,
   `storage`, `deprecated`, `deprecationWarning`, `status` (the status
   subresource) and `printerColumns`.
+
+## The emitter
+
+Each profile is one module tree (`out`), with one module per Go package that
+has anything to emit, named by the config's `packages`. Types are emitted in
+Go source order, each a Rust type with the Go name in Rust casing: words
+capitalized, runs of initialisms split (`HTTPURLRewriteFilter` is
+`HttpUrlRewriteFilter`).
+
+- **What's emitted:** the types the profile's kinds reach through their spec
+  and status; the library files' types; and string types with consts (open
+  sets such as condition types). Types reachable only through fields the
+  profile drops are left out. Only packages of the profile's CRD groups
+  re-export.
+- **Aliases** of another package's type are `pub use`; aliases of unnamed
+  types and named scalars that aren't enums are `pub type`. A defined type
+  (`type X v1.X`) is a type of its own.
+- **Structs** flatten embedded structs. Fields are the snake-cased JSON name,
+  with a `_` suffix for a keyword (`type_`). Optional fields are `Option`,
+  skipped when `None`. A struct derives `Default` only without required
+  fields; with some, it gets a `new()` that takes them as `impl Into<T>`.
+  A defaulted field's docs say its default; a field whose enum marker
+  narrows its type's values lists them in its docs and its schema.
+- **Enums** are emitted for string types with enum values: from their own
+  marker, else their fields' markers, else their consts. They're
+  `#[non_exhaustive]`, with an `Other(String)` variant, and convert from and to
+  strings. A CRD-validated enum's schema lists its values; an open set's is a
+  plain string. An enum implements `Default` only when every field that uses
+  it has the same upstream default.
+- **Integers** map exactly: `int32` is `i32`, `int` and `int64` are `i64`,
+  `uint16` is `u16`.
+- **Kinds:** each CRD version's spec struct derives `kube::CustomResource`,
+  with the envelope's group, version, kind, plural, scope, status, short names,
+  categories and printer columns. A version whose package doesn't declare the
+  spec's Go type (`type HTTPRoute v1.HTTPRoute`) gets its own spec struct of
+  that name, since kube needs one per version.
+
+The Rust is built with `quote!`, printed with `prettyplease`, then formatted
+with `rustfmt +nightly`.

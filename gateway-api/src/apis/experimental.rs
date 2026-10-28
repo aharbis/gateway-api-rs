@@ -1,14 +1,9 @@
 // WARNING: generated file — do not edit
-pub mod backendtlspolicies;
-pub mod constants;
-pub mod gatewayclasses;
-pub mod gateways;
-pub mod grpcroutes;
-pub mod httproutes;
-pub mod listenersets;
-pub mod referencegrants;
-pub mod tcproutes;
-pub mod tlsroutes;
-pub mod udproutes;
-pub mod xbackendtrafficpolicies;
-pub mod xmeshes;
+//! The types of the CRDs in `config/crd/experimental` of `sigs.k8s.io/gateway-api` v1.5.1, with one
+//! module per Go package.
+
+pub mod apisx;
+pub mod v1;
+pub mod v1alpha2;
+pub mod v1alpha3;
+pub mod v1beta1;

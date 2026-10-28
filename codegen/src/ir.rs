@@ -240,17 +240,17 @@ pub struct CrdVersion {
     pub printer_columns: Vec<PrinterColumn>,
 }
 
-#[derive(Debug, Deserialize, serde::Serialize)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PrinterColumn {
     pub name: String,
     #[serde(rename = "type")]
     pub ty: String,
     pub json_path: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub description: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub format: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub priority: Option<i32>,
 }

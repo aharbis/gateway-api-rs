@@ -38,20 +38,18 @@ impl<'ir> Index<'ir> {
         self.find(key).with_context(|| format!("no Go type {key}"))
     }
 
-    /// The type an alias stands for, following aliases until a declared
-    /// type, which may be another module's. `None` for an alias of a type
-    /// with no name, as in `type PortNumber = int32`.
-    pub fn resolve(&self, key: &str) -> Option<String> {
+    /// The type an alias stands for, following aliases of named types. The
+    /// result is a declared type, another module's type, or an alias of a
+    /// type with no name, as in `type PortNumber = int32`.
+    pub fn resolve(&self, key: &str) -> String {
         let mut key = key.to_string();
-        loop {
-            let Some((_, ty)) = self.find(&key) else {
-                return Some(key);
-            };
-            if ty.kind != TypeKind::Alias {
-                return Some(key);
-            }
-            key.clone_from(ty.alias.as_ref()?.named.as_ref()?);
+        while let Some((_, ty)) = self.find(&key)
+            && ty.kind == TypeKind::Alias
+            && let Some(target) = ty.alias.as_ref().and_then(|alias| alias.named.as_ref())
+        {
+            key.clone_from(target);
         }
+        key
     }
 
     /// The consts of a named type, in source order.

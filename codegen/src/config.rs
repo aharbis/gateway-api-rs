@@ -111,9 +111,13 @@ impl Config {
     pub fn load(path: &Path) -> Result<Self> {
         let path_display = path.display();
         let yaml = fs::read_to_string(path).with_context(|| format!("failed to read {path_display}"))?;
-        let mut config: Self =
-            serde_saphyr::from_str(&yaml).with_context(|| format!("failed to parse {path_display}"))?;
-        config.check().with_context(|| format!("{path_display}"))?;
+        Self::from_yaml(&yaml).with_context(|| format!("{path_display}"))
+    }
+
+    /// Parses and checks a config.
+    pub fn from_yaml(yaml: &str) -> Result<Self> {
+        let mut config: Self = serde_saphyr::from_str(yaml).context("failed to parse the config")?;
+        config.check()?;
         Ok(config)
     }
 

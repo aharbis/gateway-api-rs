@@ -28,11 +28,11 @@ use support::Channel;
 /// root type, and a `COMPARISONS` list of every version's comparison for the
 /// tests across all of them.
 macro_rules! schema_tests {
-    ($(#[$attr:meta])* $channel:ident { $($resource:ident: $root:ident [$($version:ident),+])+ }) => {
+    ($(#[$attr:meta])* $channel:ident { $($resource:ident: $root:ident [$($version:ident => $($module:ident)::+),+])+ }) => {
         $(#[$attr])*
         mod $channel {
             pub(super) const COMPARISONS: &[fn() -> crate::Comparison] = &[$($(
-                || crate::compare::<gateway_api::apis::$channel::$resource::$version::$root>(
+                || crate::compare::<gateway_api::apis::$channel::$($module)::+::$root>(
                     crate::Channel::named(stringify!($channel)),
                     stringify!($resource),
                     stringify!($version),
@@ -45,9 +45,7 @@ macro_rules! schema_tests {
                         mod $version {
                             #[test]
                             fn matches_upstream() {
-                                crate::check(crate::compare::<
-                                    gateway_api::apis::$channel::$resource::$version::$root,
-                                >(
+                                crate::check(crate::compare::<gateway_api::apis::$channel::$($module)::+::$root>(
                                     crate::Channel::named(stringify!($channel)),
                                     stringify!($resource),
                                     stringify!($version),
@@ -138,25 +136,16 @@ const ALLOWED: &[Allowed] = &[
         attribute: SchemaAttribute::Exists,
         upstream: "true",
         ours: "false",
-        reason: "kopium doesn't generate validation; address type and value are still compared",
+        reason: "the generator doesn't generate validation; address type and value are still compared",
     },
     Allowed {
-        channels: &Channel::ALL,
+        channels: &[Channel::Experimental],
         kind: "HTTPRoute",
-        path: "*.filters[].requestRedirect.statusCode",
-        attribute: SchemaAttribute::Enum,
-        upstream: "[301, 302, 303, 307, 308]",
-        ours: "[]",
-        reason: "kopium can't generate an integer enum, so the field is a plain `i64`",
-    },
-    Allowed {
-        channels: &Channel::ALL,
-        kind: "HTTPRoute",
-        path: "*.filters[].cors.allowMethods[]",
-        attribute: SchemaAttribute::Enum,
-        upstream: r#"["*", "CONNECT", "DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT", "TRACE"]"#,
-        ours: "[]",
-        reason: "kopium doesn't generate an enum for array items, so the items are plain strings",
+        path: "*.filters[].externalAuth.forwardBody.maxSize",
+        attribute: SchemaAttribute::Format,
+        upstream: "int64",
+        ours: "uint16",
+        reason: "Go's `uint16` is a `u16`; controller-gen gives an unsigned integer no format, which reads as int64",
     },
     Allowed {
         channels: &Channel::ALL,

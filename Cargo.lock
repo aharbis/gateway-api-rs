@@ -393,9 +393,13 @@ name = "gateway-api-codegen"
 version = "0.22.0"
 dependencies = [
  "anyhow",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
  "serde",
  "serde-saphyr 2.0.0",
  "serde_json",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -962,6 +966,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10ab3eb7f3becc3a1cbc4f2c6f20267996cfc1a6467a873763411b136a122715"
 dependencies = [
  "portable-atomic",
+]
+
+[[package]]
+name = "prettyplease"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfe0f4c752e450fc2faf62654f1c134747922825d5b04ca717b8874f41a40c0"
+dependencies = [
+ "proc-macro2",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -1843,8 +1857,6 @@ version = "0.22.0"
 dependencies = [
  "anyhow",
  "gateway-api-codegen",
- "serde",
- "serde-saphyr 2.0.0",
 ]
 
 [[package]]

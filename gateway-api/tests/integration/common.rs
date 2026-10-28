@@ -82,6 +82,7 @@ where
         api_version = K::api_version(&()),
         kind = K::kind(&())
     );
+    object.meta_mut().name = None;
     object.meta_mut().generate_name = Some("test-".into());
 
     if !served::<K>(api.clone().into_client()).await {

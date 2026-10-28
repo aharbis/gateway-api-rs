@@ -1,26 +1,24 @@
 use kube::Api;
 
-use self::api::{TlsRoute, TlsRouteRules, TlsRouteRulesBackendRefs, TlsRouteSpec};
+use self::{
+    api::{TlsRoute, TlsRouteSpec},
+    channel::v1::{BackendRef, TlsRouteRule},
+};
 use crate::common;
 
 #[ignore]
 #[tokio::test]
 async fn crud() {
-    let route = TlsRoute {
-        spec: TlsRouteSpec {
-            hostnames: vec!["example.com".into()],
-            rules: vec![TlsRouteRules {
-                backend_refs: vec![TlsRouteRulesBackendRefs {
-                    name: "test-service".into(),
-                    port: Some(443),
-                    ..Default::default()
-                }],
-                ..Default::default()
-            }],
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+    let route = TlsRoute::new(
+        "test",
+        TlsRouteSpec::new(
+            vec!["example.com".into()],
+            vec![TlsRouteRule::new(vec![BackendRef {
+                port: Some(443),
+                ..BackendRef::new("test-service")
+            }])],
+        ),
+    );
 
     common::crud(Api::default_namespaced(common::client().await), route).await;
 }

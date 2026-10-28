@@ -12,12 +12,18 @@
     clippy::must_use_candidate,
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::struct_excessive_bools
+    clippy::struct_excessive_bools,
+    // `quote!` blocks are long but flat
+    clippy::too_many_lines
 )]
 
 pub mod config;
+mod emit;
 pub mod index;
 pub mod ir;
+mod model;
+pub mod naming;
+mod write;
 
 use std::{
     path::{Path, PathBuf},
@@ -26,7 +32,12 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 
-pub use crate::{config::Config, index::Index, ir::Ir};
+pub use crate::{
+    config::Config,
+    index::Index,
+    ir::Ir,
+    write::{Generated, GeneratedProfile, Resource, ResourceVersion},
+};
 
 /// A crate's codegen: its config and each profile's IR, in the config's
 /// profile order.

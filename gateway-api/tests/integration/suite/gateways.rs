@@ -1,6 +1,3 @@
-use gateway_api::constants::{
-    GatewayConditionReason, GatewayConditionType, ListenerConditionReason, ListenerConditionType,
-};
 use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::{Condition, Time},
     jiff::Timestamp,
@@ -11,25 +8,20 @@ use kube::{
 };
 use serde_json::json;
 
-use self::api::{
-    Gateway, GatewayListeners, GatewaySpec, GatewayStatus, GatewayStatusAddresses, GatewayStatusListeners,
+use self::{
+    api::{Gateway, GatewaySpec, GatewayStatus, Listener, ListenerStatus},
+    channel::v1::{
+        AddressType, GatewayConditionReason, GatewayConditionType, GatewayStatusAddress, ListenerConditionReason,
+        ListenerConditionType,
+    },
 };
 use crate::common;
 
 fn gateway() -> Gateway {
-    Gateway {
-        spec: GatewaySpec {
-            gateway_class_name: "test-gateway-class".into(),
-            listeners: vec![GatewayListeners {
-                name: "http".into(),
-                port: 80,
-                protocol: "HTTP".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        },
-        ..Default::default()
-    }
+    Gateway::new(
+        "test",
+        GatewaySpec::new("test-gateway-class", vec![Listener::new("http", 80, "HTTP")]),
+    )
 }
 
 #[ignore]
@@ -43,6 +35,7 @@ async fn crud() {
 async fn status() {
     let api: Api<Gateway> = Api::default_namespaced(common::client().await);
     let mut gw = gateway();
+    gw.metadata.name = None;
     gw.metadata.generate_name = Some("test-".into());
     let created = api
         .create(&PostParams::default(), &gw)
@@ -52,31 +45,33 @@ async fn status() {
     assert!(created.metadata.uid.is_some());
     assert_eq!(created.spec.gateway_class_name, "test-gateway-class");
 
-    let condition = |type_: String, reason: String| Condition {
+    let condition = |type_: &str, reason: &str| Condition {
         last_transition_time: Time(Timestamp::now()),
         message: "testing gateway".into(),
         observed_generation: Some(1),
-        reason,
+        reason: reason.into(),
         status: "True".into(),
-        type_,
+        type_: type_.into(),
     };
     let status = GatewayStatus {
-        addresses: Some(vec![GatewayStatusAddresses {
-            r#type: Some("IPAddress".into()),
-            value: "192.0.2.1".into(),
+        addresses: Some(vec![GatewayStatusAddress {
+            type_: Some(AddressType::IpAddress),
+            ..GatewayStatusAddress::new("192.0.2.1")
         }]),
-        listeners: Some(vec![GatewayStatusListeners {
-            name: "http".into(),
-            attached_routes: 0,
+        listeners: Some(vec![ListenerStatus {
             supported_kinds: Some(vec![]),
-            conditions: vec![condition(
-                ListenerConditionType::Programmed.to_string(),
-                ListenerConditionReason::Programmed.to_string(),
-            )],
+            ..ListenerStatus::new(
+                "http",
+                0,
+                vec![condition(
+                    ListenerConditionType::Programmed.as_str(),
+                    ListenerConditionReason::Programmed.as_str(),
+                )],
+            )
         }]),
         conditions: Some(vec![condition(
-            GatewayConditionType::Programmed.to_string(),
-            GatewayConditionReason::Programmed.to_string(),
+            GatewayConditionType::Programmed.as_str(),
+            GatewayConditionReason::Programmed.as_str(),
         )]),
         ..Default::default()
     };
@@ -99,12 +94,16 @@ async fn status() {
     let addresses = s.addresses.expect("addresses should be set");
     assert_eq!(addresses.len(), 1);
     assert_eq!(addresses[0].value, "192.0.2.1");
+    assert_eq!(addresses[0].type_, Some(AddressType::IpAddress));
     let listeners = s.listeners.expect("listeners should be set");
     assert_eq!(listeners.len(), 1);
     assert_eq!(listeners[0].name, "http");
     assert_eq!(listeners[0].attached_routes, 0);
     let conditions = s.conditions.expect("conditions should be set");
     assert_eq!(conditions.len(), 1);
-    assert_eq!(conditions[0].reason, GatewayConditionReason::Programmed.to_string());
+    assert_eq!(
+        GatewayConditionReason::from(conditions[0].reason.as_str()),
+        GatewayConditionReason::Programmed
+    );
     assert_eq!(conditions[0].status, "True");
 }

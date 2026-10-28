@@ -1,18 +1,12 @@
 use kube::Api;
 
-use self::api::{XMesh, XMeshSpec};
+use self::api::{MeshSpec, XMesh};
 use crate::common;
 
 #[ignore]
 #[tokio::test]
 async fn crud() {
-    let mesh = XMesh {
-        spec: XMeshSpec {
-            controller_name: "example.com/gateway-api-tests".into(),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+    let mesh = XMesh::new("test", MeshSpec::new("example.com/gateway-api-tests"));
 
     common::crud(Api::all(common::client().await), mesh).await;
 }
