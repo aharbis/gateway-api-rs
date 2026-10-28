@@ -1,5 +1,5 @@
 // WARNING: generated file — do not edit
-//! Go package `sigs.k8s.io/gateway-api/apis/v1alpha2` at v1.5.1.
+//! Generated from Go package `sigs.k8s.io/gateway-api/apis/v1alpha2` at v1.5.1.
 //!
 //! Kinds available in the `gateway.networking.k8s.io/v1alpha2` apiVersion:
 //!

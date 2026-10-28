@@ -247,7 +247,7 @@ impl<'m, 'a> ModuleEmitter<'m, 'a> {
         let module = &ir.module;
         let path = &self.package.path;
         let version = &ir.version;
-        let mut doc = format!("Go package `{module}/{path}` at {version}.\n");
+        let mut doc = format!("Generated from Go package `{module}/{path}` at {version}.\n");
         let Some(first) = self.kinds.values().flatten().next() else {
             return doc;
         };

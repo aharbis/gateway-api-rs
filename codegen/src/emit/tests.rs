@@ -163,7 +163,7 @@ fn module_doc(name: &str) -> Vec<String> {
 #[test]
 fn module_doc_lists_each_kind_under_its_api_version() {
     let expected = [
-        " Go package `example.com/api/apis/v1` at v1.0.0.",
+        " Generated from Go package `example.com/api/apis/v1` at v1.0.0.",
         "",
         " Kinds available in the `example.io/v1` apiVersion:",
         "",
@@ -176,7 +176,7 @@ fn module_doc_lists_each_kind_under_its_api_version() {
     assert_eq!(module_doc("v1"), expected);
 
     let expected = [
-        " Go package `example.com/api/apis/v1beta1` at v1.0.0.",
+        " Generated from Go package `example.com/api/apis/v1beta1` at v1.0.0.",
         "",
         " Kinds available in the `example.io/v1beta1` apiVersion:",
         "",
