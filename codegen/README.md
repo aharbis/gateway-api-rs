@@ -33,7 +33,15 @@ which defaults to the directory `<crate>/codegen` is in). For `gateway-api`,
 `cargo xtask generate` runs it and then the emitter.
 
 Bumping the upstream version is `go get <module>@<version>` there, then
-generating. The IR diff shows upstream's changes in Go terms, and the Rust diff
+generating.
+
+gofacts is shaped for any Go-based API group, not only Gateway API. Its tests
+(`go test ./...` in `gofacts/`) include one that writes the IR of the
+[Gateway API Inference Extension], pinned in
+`gofacts/testdata/inference-extension/` with a config that has no profiles and
+no tags.
+
+[Gateway API Inference Extension]:https://github.com/kubernetes-sigs/gateway-api-inference-extension The IR diff shows upstream's changes in Go terms, and the Rust diff
 shows what they do to the crate.
 
 ## Config

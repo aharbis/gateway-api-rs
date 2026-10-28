@@ -1,0 +1,9 @@
+# A config for the Inference Extension, the reference second user of
+# gofacts: one profile, no tags.
+module: sigs.k8s.io/gateway-api-inference-extension
+crate: gateway-api-inference-extension
+packages:
+  api/v1: v1
+  apix/v1alpha1: apix::v1alpha1
+crds: config/crd/bases
+out: apis

@@ -81,6 +81,10 @@ jobs:
             gateway-api/codegen/go.sum
 
       - name: vet and test go modules
+        # gofacts' Inference Extension test loads a module that needs a newer
+        # Go than the crate's codegen module names.
+        env:
+          GOTOOLCHAIN: auto
         run: make go.check
 
       - name: run generate

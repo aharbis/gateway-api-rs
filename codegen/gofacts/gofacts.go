@@ -21,8 +21,11 @@ import (
 // Options are Run's inputs.
 type Options struct {
 	// The config file. Packages load from its directory, under the go.mod
-	// there, and the IR is written to ir/ next to it.
+	// there.
 	Config string
+	// The directory the IR is written to. Empty means ir/ next to the
+	// config.
+	Out string
 	// The repository root, for the config's crate and fixtures paths.
 	// Empty means the config is at <root>/<crate>/codegen/config.yaml.
 	Root string
@@ -61,7 +64,10 @@ func Run(opts Options) error {
 	module := pkgs[0].Module
 	r := newReader(config.Module, config.Tags, pkgs)
 
-	irDir := filepath.Join(dir, "ir")
+	irDir := opts.Out
+	if irDir == "" {
+		irDir = filepath.Join(dir, "ir")
+	}
 	if err := os.MkdirAll(irDir, 0o755); err != nil {
 		return err
 	}
