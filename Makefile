@@ -1,4 +1,3 @@
-GATEWAY_API_VERSION ?= v1.5.1
 KIND_CLUSTER_NAME ?= gateway-api-test
 KIND_KUBECONFIG := /tmp/$(KIND_CLUSTER_NAME)-kubeconfig
 
@@ -19,7 +18,7 @@ build:
 
 # Every Rust file, not just those cargo fmt reaches through the module tree:
 # the integration test bodies are declared inside a macro, which it skips.
-RUST_FILES = $(shell find gateway-api xtask -name '*.rs')
+RUST_FILES = $(shell find codegen gateway-api xtask -name '*.rs')
 
 .PHONY: fmt
 fmt:
@@ -41,7 +40,7 @@ package:
 
 .PHONY: generate
 generate:
-	cargo xtask generate $(GATEWAY_API_VERSION)
+	cargo xtask generate
 
 define run_integration_tests
 	@$(MAKE) --no-print-directory kind.start

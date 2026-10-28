@@ -1,0 +1,42 @@
+# The codegen config for the gateway-api crate. See codegen/README.md.
+module: sigs.k8s.io/gateway-api
+crate: gateway-api
+packages:
+  apis/v1: v1
+  apis/v1beta1: v1beta1
+  apis/v1alpha2: v1alpha2
+  apis/v1alpha3: v1alpha3
+  apisx/v1alpha1: apisx::v1alpha1
+profiles:
+  - name: standard
+    crds: config/crd/standard
+    out: apis/standard
+  - name: experimental
+    crds: config/crd/experimental
+    out: apis/experimental
+    feature: experimental
+# Upstream's tags, as tools/generator/main.go applies them at v1.5.1.
+tags:
+  prefix: gateway
+  rules:
+    - tag: experimental
+      drop: item
+      in: [standard]
+    - tag: experimental:description
+      drop: block
+      in: [standard]
+    - tag: util:excludeFromCRD
+      drop: block
+      in: all
+    - tag: "{profile}:validation:Enum"
+      override: kubebuilder:validation:Enum
+    - tag: validateIPAddress
+    - tag: "{profile}:validation:Pattern"
+    - tag: "{profile}:validation:XValidation:message"
+library_files: [shared_types.go, object_reference_types.go, policy_types.go]
+external:
+  k8s.io/apimachinery/pkg/apis/meta/v1:
+    Condition: k8s_openapi::apimachinery::pkg::apis::meta::v1::Condition
+    LabelSelector: k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector
+    Time: k8s_openapi::apimachinery::pkg::apis::meta::v1::Time
+fixtures: tests/fixtures/crds

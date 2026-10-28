@@ -10,6 +10,6 @@ version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+gateway-api-codegen = { path = "../codegen" }
 serde-saphyr.workspace = true
 serde.workspace = true
-ureq.workspace = true

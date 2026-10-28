@@ -1,0 +1,15 @@
+[package]
+name = "gateway-api-codegen"
+description = "Generates Rust bindings for Kubernetes API groups from their Go source"
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde-saphyr.workspace = true
+serde.workspace = true
+serde_json.workspace = true

@@ -13,6 +13,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use gateway_api_codegen::Codegen;
 use serde::Deserialize;
 
 // -----------------------------------------------------------------------------
@@ -21,7 +22,10 @@ use serde::Deserialize;
 
 const APIS_DIR: &str = "gateway-api/src/apis";
 
-/// Vendored upstream CRDs, installed by the integration tests.
+/// The crate's codegen directory: its config, Go module pin and IR.
+const CODEGEN_DIR: &str = "gateway-api/codegen";
+
+/// Upstream CRDs, copied by gofacts from the pinned Go module.
 const CRD_FIXTURES_DIR: &str = "gateway-api/tests/fixtures/crds";
 
 /// Integration test bodies, shared across API versions and channels.
@@ -29,10 +33,6 @@ const TEST_SUITE_DIR: &str = "gateway-api/tests/integration/suite";
 
 /// The `apis!` macro, in the support module shared by the test crates.
 const TEST_APIS_FILE: &str = "gateway-api/tests/support/apis.rs";
-
-const CRD_BASE_URL: &str = "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api";
-
-const CRD_PATH: &str = "config/crd";
 
 const CRD_PREFIX_STANDARD: &str = "gateway.networking.k8s.io_";
 const CRD_PREFIX_EXPERIMENTAL: &str = "gateway.networking.x-k8s.io_";
@@ -259,12 +259,9 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if let Some("generate") = args.get(1).map(String::as_str) {
-        let version = args
-            .get(2)
-            .context("usage: cargo xtask generate <version>\n  e.g. cargo xtask generate v1.4.1")?;
-        generate(version)
+        generate()
     } else {
-        eprintln!("usage: cargo xtask generate <version>");
+        eprintln!("usage: cargo xtask generate");
         process::exit(1);
     }
 }
@@ -282,7 +279,10 @@ struct GeneratedResource {
     versions: Vec<String>,
 }
 
-fn generate(version: &str) -> Result<()> {
+fn generate() -> Result<()> {
+    let root = env::current_dir()?;
+    let codegen = Codegen::generate_ir(&root, Path::new(CODEGEN_DIR))?;
+    let version = codegen.version();
     let mut channels = Vec::new();
     for channel in [&STANDARD, &EXPERIMENTAL] {
         channels.push((channel, generate_channel(version, channel)?));
@@ -304,29 +304,20 @@ fn generate_channel(version: &str, channel: &Channel) -> Result<Vec<GeneratedRes
     let fixtures_dir = format!("{CRD_FIXTURES_DIR}/{channel_name}");
 
     // Clean and recreate
-    for dir in [&dir, &fixtures_dir] {
-        let path = Path::new(dir);
-        if path.exists() {
-            fs::remove_dir_all(path)?;
-        }
-        fs::create_dir_all(path)?;
+    let path = Path::new(&dir);
+    if path.exists() {
+        fs::remove_dir_all(path)?;
     }
+    fs::create_dir_all(path)?;
 
     let mut unused_defaults: BTreeSet<&str> = channel.enum_defaults.iter().map(|(name, _)| *name).collect();
     let mut resources = Vec::new();
 
-    // Fetch CRDs and run kopium once per API version
+    // Read CRDs and run kopium once per API version
     for api in channel.apis {
         let api_name = api.name;
         let root_version = api.root_version;
-        let crd = fetch_crd(version, channel_name, api)?;
-        fs::write(
-            format!(
-                "{fixtures_dir}/{crd_prefix}{api_name}.yaml",
-                crd_prefix = api.crd_prefix
-            ),
-            gen_crd_fixture(version, &crd),
-        )?;
+        let crd = read_crd(&fixtures_dir, api)?;
 
         let Some(root) = crd.spec.versions.iter().find(|v| v.name == root_version) else {
             bail!("{channel_name} {api_name}: root version {root_version} is not defined by the CRD");
@@ -374,7 +365,7 @@ fn generate_version(
     bundle: &str,
     channel: &Channel,
     api: &Api,
-    crd: &FetchedCrd,
+    crd: &FixtureCrd,
     crd_version: &CrdVersion,
     unused_defaults: &mut BTreeSet<&'static str>,
 ) -> Result<String> {
@@ -439,38 +430,22 @@ fn rustfmt() -> Result<()> {
 }
 
 // -----------------------------------------------------------------------------
-// CRD fetching and kopium conversion
+// CRD reading and kopium conversion
 // -----------------------------------------------------------------------------
 
-/// Fetches a URL and returns the response body as a string.
-fn fetch_url(url: &str) -> Result<String> {
-    ureq::get(url)
-        .call()
-        .with_context(|| format!("failed to fetch {url}"))?
-        .into_body()
-        .read_to_string()
-        .with_context(|| format!("failed to read response from {url}"))
-}
-
-/// A fetched CRD: where it came from, its YAML for kopium, and the parsed
-/// parts of its spec.
-struct FetchedCrd {
-    url: String,
+/// A CRD fixture: its YAML for kopium, and the parsed parts of its spec.
+struct FixtureCrd {
     yaml: String,
     spec: CrdSpec,
 }
 
-fn fetch_crd(version: &str, channel: &str, api: &Api) -> Result<FetchedCrd> {
+fn read_crd(fixtures_dir: &str, api: &Api) -> Result<FixtureCrd> {
     let Api { name, crd_prefix, .. } = api;
-    let url = format!("{CRD_BASE_URL}/{version}/{CRD_PATH}/{channel}/{crd_prefix}{name}.yaml");
+    let path = format!("{fixtures_dir}/{crd_prefix}{name}.yaml");
 
-    let yaml = fetch_url(&url)?;
-    let crd: Crd = serde_saphyr::from_str(&yaml).with_context(|| format!("failed to parse {url}"))?;
-    Ok(FetchedCrd {
-        url,
-        yaml,
-        spec: crd.spec,
-    })
+    let yaml = fs::read_to_string(&path).with_context(|| format!("failed to read {path}"))?;
+    let crd: Crd = serde_saphyr::from_str(&yaml).with_context(|| format!("failed to parse {path}"))?;
+    Ok(FixtureCrd { yaml, spec: crd.spec })
 }
 
 /// Runs kopium on a CRD for a single API version.
@@ -631,21 +606,8 @@ fn gen_enum_defaults(
 }
 
 // -----------------------------------------------------------------------------
-// Test fixture, `apis!` and stub generation
+// `apis!` and stub generation
 // -----------------------------------------------------------------------------
-
-/// Generates a vendored CRD fixture: the upstream YAML, unchanged, under a
-/// comment saying where it came from.
-fn gen_crd_fixture(bundle: &str, crd: &FetchedCrd) -> String {
-    let FetchedCrd { url, yaml, .. } = crd;
-    format!(
-        "# WARNING: generated file — do not edit\n\
-         # Gateway API {bundle} upstream CRD, vendored unchanged below this header by\n\
-         # `cargo xtask generate {bundle}` for the integration tests. Source:\n\
-         # {url}\n\
-         {yaml}"
-    )
-}
 
 /// Generates the `apis!` macro, which calls a callback macro once per channel
 /// with each resource's root type and every API version its CRD defines.
