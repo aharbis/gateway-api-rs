@@ -1,14 +1,16 @@
 // WARNING: generated file — do not edit
 //! Go package `sigs.k8s.io/gateway-api/apisx/v1alpha1` at v1.5.1.
 //!
-//! Its kinds, as the CRDs in `config/crd/experimental` define them:
+//! Kinds available in the `gateway.networking.x-k8s.io/v1alpha1` apiVersion:
 //!
-//! - [`XBackendTrafficPolicy`]: `gateway.networking.x-k8s.io/v1alpha1`
+//! - [`XBackendTrafficPolicy`]
+//!   - kind: `XBackendTrafficPolicy`
 //!   - served: yes
 //!   - storage: yes
 //!   - deprecated: no
 //!
-//! - [`XMesh`]: `gateway.networking.x-k8s.io/v1alpha1`
+//! - [`XMesh`]
+//!   - kind: `XMesh`
 //!   - served: yes
 //!   - storage: yes
 //!   - deprecated: no

@@ -1,14 +1,16 @@
 // WARNING: generated file — do not edit
 //! Go package `sigs.k8s.io/gateway-api/apis/v1alpha3` at v1.5.1.
 //!
-//! Its kinds, as the CRDs in `config/crd/experimental` define them:
+//! Kinds available in the `gateway.networking.k8s.io/v1alpha3` apiVersion:
 //!
-//! - [`BackendTlsPolicy`]: `gateway.networking.k8s.io/v1alpha3`
+//! - [`BackendTlsPolicy`]
+//!   - kind: `BackendTLSPolicy`
 //!   - served: yes
 //!   - storage: no
 //!   - deprecated: yes (The v1alpha3 version of BackendTLSPolicy has been deprecated and will be removed in a future release of the API. Please upgrade to v1.)
 //!
-//! - [`TlsRoute`]: `gateway.networking.k8s.io/v1alpha3`
+//! - [`TlsRoute`]
+//!   - kind: `TLSRoute`
 //!   - served: yes
 //!   - storage: no
 //!   - deprecated: yes (The v1alpha3 version of TLSRoute has been deprecated and will be removed in a future release of the API. Please upgrade to v1.)

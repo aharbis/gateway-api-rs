@@ -239,27 +239,30 @@ impl<'m, 'a> ModuleEmitter<'m, 'a> {
         Ok(kind)
     }
 
-    /// The module's docs: the Go package, and its kinds' versions as the
-    /// CRDs define them.
+    /// The module's docs: the Go package, and the kinds its apiVersion
+    /// makes available.
     fn module_doc(&self) -> String {
         let model = self.model;
         let ir = model.index.ir;
         let module = &ir.module;
         let path = &self.package.path;
         let version = &ir.version;
-        let crds = &model.profile.crds;
         let mut doc = format!("Go package `{module}/{path}` at {version}.\n");
-        if self.kinds.is_empty() {
+        let Some(first) = self.kinds.values().flatten().next() else {
             return doc;
-        }
-        write!(doc, "\nIts kinds, as the CRDs in `{crds}` define them:\n").expect("writing to a String");
+        };
+        // A kind's version is its package's (gofacts finds a version's
+        // package by its group and version name), so one apiVersion covers
+        // every kind here and goes at the top, not on each item.
+        let group = &first.crd.group;
+        let api_version = &first.version.name;
+        write!(doc, "\nKinds available in the `{group}/{api_version}` apiVersion:\n").expect("writing to a String");
         let yes_no = |b: bool| if b { "yes" } else { "no" };
         for kinds in self.kinds.values() {
             for kind in kinds {
                 let v = kind.version;
                 let root = type_name(&kind.crd.kind);
-                let group = &kind.crd.group;
-                let api_version = &v.name;
+                let go_kind = &kind.crd.kind;
                 let deprecated = match (&v.deprecation_warning, v.deprecated) {
                     (Some(warning), true) => {
                         let warning = warning.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -267,10 +270,10 @@ impl<'m, 'a> ModuleEmitter<'m, 'a> {
                     },
                     _ => yes_no(v.deprecated).to_string(),
                 };
-                write!(
+                writeln!(
                     doc,
-                    "\n- [`{root}`]: `{group}/{api_version}`\n  - served: {served}\n  - storage: {storage}\n  - \
-                     deprecated: {deprecated}\n",
+                    "\n- [`{root}`]\n  - kind: `{go_kind}`\n  - served: {served}\n  - storage: {storage}\n  - deprecated: \
+                     {deprecated}",
                     served = yes_no(v.served),
                     storage = yes_no(v.storage),
                 )

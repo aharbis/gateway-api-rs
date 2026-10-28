@@ -92,7 +92,8 @@ const IR: &str = r#"{
       "versions": [
         {"name": "v1", "package": "apis/v1", "served": true, "storage": true, "status": true,
          "printerColumns": [{"name": "Age", "type": "date", "jsonPath": ".metadata.creationTimestamp"}]},
-        {"name": "v1beta1", "package": "apis/v1beta1", "served": true, "storage": false}
+        {"name": "v1beta1", "package": "apis/v1beta1", "served": true, "storage": false,
+         "deprecated": true, "deprecationWarning": "Use v1 instead."}
       ]
     }
   ]
@@ -138,6 +139,54 @@ fn item(file: &syn::File, name: &str) -> String {
 /// strings and trailing commas don't matter.
 fn tokens(item: &syn::Item) -> String {
     prettyplease::unparse(&syn::parse_file(&item.to_token_stream().to_string()).unwrap())
+}
+
+/// The module's inner docs, one string per line.
+fn module_doc(name: &str) -> Vec<String> {
+    module(name)
+        .attrs
+        .into_iter()
+        .filter(|attr| matches!(attr.style, syn::AttrStyle::Inner(_)))
+        .filter_map(|attr| match attr.meta {
+            syn::Meta::NameValue(nv) => match nv.value {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(s), ..
+                }) => Some(s.value()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// One bullet per kind, under the module's one apiVersion.
+#[test]
+fn module_doc_lists_each_kind_under_its_api_version() {
+    let expected = [
+        " Go package `example.com/api/apis/v1` at v1.0.0.",
+        "",
+        " Kinds available in the `example.io/v1` apiVersion:",
+        "",
+        " - [`Widget`]",
+        "   - kind: `Widget`",
+        "   - served: yes",
+        "   - storage: yes",
+        "   - deprecated: no",
+    ];
+    assert_eq!(module_doc("v1"), expected);
+
+    let expected = [
+        " Go package `example.com/api/apis/v1beta1` at v1.0.0.",
+        "",
+        " Kinds available in the `example.io/v1beta1` apiVersion:",
+        "",
+        " - [`Widget`]",
+        "   - kind: `Widget`",
+        "   - served: yes",
+        "   - storage: no",
+        "   - deprecated: yes (Use v1 instead.)",
+    ];
+    assert_eq!(module_doc("v1beta1"), expected);
 }
 
 #[test]

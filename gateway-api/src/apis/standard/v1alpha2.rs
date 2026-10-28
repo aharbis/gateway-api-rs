@@ -1,9 +1,10 @@
 // WARNING: generated file — do not edit
 //! Go package `sigs.k8s.io/gateway-api/apis/v1alpha2` at v1.5.1.
 //!
-//! Its kinds, as the CRDs in `config/crd/standard` define them:
+//! Kinds available in the `gateway.networking.k8s.io/v1alpha2` apiVersion:
 //!
-//! - [`TlsRoute`]: `gateway.networking.k8s.io/v1alpha2`
+//! - [`TlsRoute`]
+//!   - kind: `TLSRoute`
 //!   - served: no
 //!   - storage: no
 //!   - deprecated: yes (The v1alpha2 version of TLSRoute has been deprecated and will be removed in a future release of the API. Please upgrade to v1.)

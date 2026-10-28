@@ -1,24 +1,28 @@
 // WARNING: generated file — do not edit
 //! Go package `sigs.k8s.io/gateway-api/apis/v1beta1` at v1.5.1.
 //!
-//! Its kinds, as the CRDs in `config/crd/experimental` define them:
+//! Kinds available in the `gateway.networking.k8s.io/v1beta1` apiVersion:
 //!
-//! - [`Gateway`]: `gateway.networking.k8s.io/v1beta1`
+//! - [`Gateway`]
+//!   - kind: `Gateway`
 //!   - served: yes
 //!   - storage: no
 //!   - deprecated: no
 //!
-//! - [`GatewayClass`]: `gateway.networking.k8s.io/v1beta1`
+//! - [`GatewayClass`]
+//!   - kind: `GatewayClass`
 //!   - served: yes
 //!   - storage: no
 //!   - deprecated: no
 //!
-//! - [`HttpRoute`]: `gateway.networking.k8s.io/v1beta1`
+//! - [`HttpRoute`]
+//!   - kind: `HTTPRoute`
 //!   - served: yes
 //!   - storage: no
 //!   - deprecated: no
 //!
-//! - [`ReferenceGrant`]: `gateway.networking.k8s.io/v1beta1`
+//! - [`ReferenceGrant`]
+//!   - kind: `ReferenceGrant`
 //!   - served: yes
 //!   - storage: yes
 //!   - deprecated: no
